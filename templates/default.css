@@ -1,0 +1,8 @@
+pre {
+  font: unset;
+  max-width: 70ch;
+  margin: 0 auto;
+  padding: 1rem;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+}
