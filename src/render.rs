@@ -2,14 +2,16 @@ use crate::config::Config;
 use crate::entries::Entry;
 
 pub const DEFAULT_TEMPLATE: &str = include_str!("../templates/default.html");
+pub const DEFAULT_STYLE: &str = include_str!("../templates/default.css");
 
 pub fn render_page(template: &str, config: &Config, entries: &[Entry], form_html: &str) -> String {
     let entries_html = render_entries(entries, &config.separator);
-    let style = if config.style.is_empty() {
-        String::new()
+    let css = if config.style.is_empty() {
+        DEFAULT_STYLE
     } else {
-        format!("<style>\n{}\n  </style>", config.style)
+        &config.style
     };
+    let style = format!("<style>\n{css}\n  </style>");
     template
         .replace("{{title}}", &config.site_title)
         .replace("{{form}}", form_html)
