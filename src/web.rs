@@ -153,12 +153,12 @@ async fn submit(
     }
 
     // Process drawing if enabled and provided
-    let (drawing_filename, drawing_bytes) = if state.config.enable_drawings && !form.drawing.is_empty() {
+    let drawing_bytes: Option<Vec<u8>> = if state.config.enable_drawings && !form.drawing.is_empty() {
         let b64 = form.drawing
             .strip_prefix("data:image/png;base64,")
             .unwrap_or("");
         if b64.is_empty() {
-            (String::new(), None)
+            None
         } else {
             let bytes = match base64::engine::general_purpose::STANDARD.decode(b64) {
                 Ok(b) => b,
@@ -179,26 +179,33 @@ async fn submit(
                 return Html("Invalid drawing dimensions.".to_string());
             }
 
-            let drawing_id = &Uuid::new_v4().to_string()[..8];
-            let date_now = chrono::Utc::now().format("%Y-%m-%d").to_string();
-            let drawing_name = format!("{date_now}-{drawing_id}.png");
-            let drawings_dir = state.config.data_dir.join("drawings");
-            std::fs::create_dir_all(&drawings_dir).ok();
-            if let Err(e) = std::fs::write(drawings_dir.join(&drawing_name), &bytes) {
-                tracing::error!("failed to write drawing: {e}");
-                return Html("Something went wrong. Please try again.".to_string());
-            }
-            (drawing_name, Some(bytes))
+            Some(bytes)
         }
     } else {
-        (String::new(), None)
+        None
+    };
+
+    let now = chrono::Utc::now();
+    let epoch = now.timestamp();
+    let short_id = &Uuid::new_v4().to_string()[..8];
+    let prefix = format!("{epoch}_{short_id}");
+    let date = now.format("%Y-%m-%dT%H:%M:%S").to_string();
+    let filename = format!("{prefix}.txt");
+
+    // Save drawing with the same prefix as the entry
+    let drawing_filename = if let Some(ref bytes) = drawing_bytes {
+        let drawing_name = format!("{prefix}.png");
+        let drawings_dir = state.config.data_dir.join("drawings");
+        std::fs::create_dir_all(&drawings_dir).ok();
+        if let Err(e) = std::fs::write(drawings_dir.join(&drawing_name), bytes) {
+            tracing::error!("failed to write drawing: {e}");
+            return Html("Something went wrong. Please try again.".to_string());
+        }
+        drawing_name
+    } else {
+        String::new()
     };
     let _ = drawing_bytes;
-
-    let short_id = &Uuid::new_v4().to_string()[..8];
-    let date = chrono::Utc::now().format("%Y-%m-%dT%H:%M:%S").to_string();
-    let date_short = &date[..10];
-    let filename = format!("{date_short}-{short_id}.txt");
 
     let entry = Entry {
         id: filename.trim_end_matches(".txt").to_string(),

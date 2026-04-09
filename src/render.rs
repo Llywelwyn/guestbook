@@ -38,6 +38,48 @@ pub fn render_form(config: &Config) -> String {
         String::new()
     };
 
+    let drawing_section = if config.enable_drawings {
+        format!(
+            r##"
+<label class="guestbook-label">{label}</label>
+<canvas class="guestbook-canvas" width="{w}" height="{h}"></canvas>
+<a href="#" class="guestbook-canvas-reset">Reset</a>
+<input type="hidden" name="drawing">
+<script>
+(function(){{
+  var c=document.querySelector('.guestbook-canvas'),
+      x=c.getContext('2d'),
+      d=false,lx,ly;
+  function pos(e){{var r=c.getBoundingClientRect();
+    return[e.clientX-r.left,e.clientY-r.top]}}
+  function tpos(e){{var r=c.getBoundingClientRect(),t=e.touches[0];
+    return[t.clientX-r.left,t.clientY-r.top]}}
+  c.addEventListener('mousedown',function(e){{d=true;var p=pos(e);lx=p[0];ly=p[1]}});
+  c.addEventListener('mousemove',function(e){{if(!d)return;var p=pos(e);
+    x.beginPath();x.moveTo(lx,ly);x.lineTo(p[0],p[1]);x.stroke();lx=p[0];ly=p[1]}});
+  c.addEventListener('mouseup',function(){{d=false}});
+  c.addEventListener('mouseleave',function(){{d=false}});
+  c.addEventListener('touchstart',function(e){{e.preventDefault();var p=tpos(e);lx=p[0];ly=p[1]}});
+  c.addEventListener('touchmove',function(e){{e.preventDefault();var p=tpos(e);
+    x.beginPath();x.moveTo(lx,ly);x.lineTo(p[0],p[1]);x.stroke();lx=p[0];ly=p[1]}});
+  document.querySelector('.guestbook-canvas-reset').addEventListener('click',function(e){{
+    e.preventDefault();x.clearRect(0,0,c.width,c.height)}});
+  c.closest('form').addEventListener('submit',function(){{
+    var px=new Uint32Array(x.getImageData(0,0,c.width,c.height).data.buffer);
+    if(px.some(function(v){{return v!==0}})){{
+      c.closest('form').querySelector('[name=drawing]').value=c.toDataURL('image/png');
+    }}
+  }});
+}})();
+</script>"##,
+            label = config.label_drawing,
+            w = config.canvas_width,
+            h = config.canvas_height,
+        )
+    } else {
+        String::new()
+    };
+
     format!(
         r#"<span class="guestbook-prompt">{prompt}</span>
 <form class="guestbook-form" method="post" action="/submit" accept-charset="UTF-8">
@@ -47,6 +89,7 @@ pub fn render_form(config: &Config) -> String {
 <label class="guestbook-label">{label_message}</label>
 <textarea class="guestbook-textarea" name="message" rows="{rows}" cols="{cols}" required></textarea>
 {captcha_section}
+{drawing_section}
 <input name="url" style="display:none" tabindex="-1" autocomplete="off">
 <button class="guestbook-button" type="submit">{button}</button>
 </form>"#,
@@ -57,6 +100,7 @@ pub fn render_form(config: &Config) -> String {
         rows = config.textarea_rows,
         cols = config.textarea_cols,
         captcha_section = captcha_section,
+        drawing_section = drawing_section,
         button = config.button_text,
     )
 }
@@ -100,8 +144,16 @@ fn render_entry(entry: &Entry, config: &Config) -> String {
     } else {
         escape_html(&entry.body)
     };
+    let drawing_html = if !entry.meta.drawing.is_empty() {
+        format!(
+            "\n<img class=\"entry-drawing\" src=\"/drawings/{}\">",
+            escape_html(&entry.meta.drawing)
+        )
+    } else {
+        String::new()
+    };
     format!(
-        "\n{header}\n\n<span class=\"entry-body\">{body}</span>\n\n<span class=\"entry-separator\">{}</span>\n",
+        "\n{header}\n\n<span class=\"entry-body\">{body}</span>{drawing_html}\n\n<span class=\"entry-separator\">{}</span>\n",
         config.separator
     )
 }
@@ -321,5 +373,57 @@ mod tests {
             escape_html("<b>test</b> & \"quotes\" 'apos'"),
             "&lt;b&gt;test&lt;/b&gt; &amp; &quot;quotes&quot; &#x27;apos&#x27;"
         );
+    }
+
+    #[test]
+    fn test_render_form_shows_canvas_when_drawings_enabled() {
+        let mut config = test_config();
+        config.enable_drawings = true;
+        let form = render_form(&config);
+        assert!(form.contains("<canvas"));
+        assert!(form.contains("class=\"guestbook-canvas\""));
+        assert!(form.contains("name=\"drawing\""));
+        assert!(form.contains("Reset"));
+    }
+
+    #[test]
+    fn test_render_form_hides_canvas_when_drawings_disabled() {
+        let config = test_config();
+        let form = render_form(&config);
+        assert!(!form.contains("<canvas"));
+        assert!(!form.contains("name=\"drawing\""));
+    }
+
+    #[test]
+    fn test_render_entry_with_drawing() {
+        let config = test_config();
+        let mut entry = make_entry("alice", "2026-04-09", "Hello!");
+        entry.meta.drawing = "2026-04-09-abc123.png".into();
+        let form = render_form(&config);
+        let html = render_page(DEFAULT_TEMPLATE, &config, &[entry], &form);
+        assert!(html.contains(r#"<img class="entry-drawing" src="/drawings/2026-04-09-abc123.png">"#));
+    }
+
+    #[test]
+    fn test_render_entry_drawing_works_without_html_injection() {
+        let mut config = test_config();
+        config.enable_html_injection = false;
+        let mut entry = make_entry("alice", "2026-04-09", "<script>xss</script>");
+        entry.meta.drawing = "2026-04-09-abc123.png".into();
+        let form = render_form(&config);
+        let html = render_page(DEFAULT_TEMPLATE, &config, &[entry], &form);
+        // Drawing renders regardless
+        assert!(html.contains(r#"<img class="entry-drawing" src="/drawings/2026-04-09-abc123.png">"#));
+        // But body HTML is escaped
+        assert!(html.contains("&lt;script&gt;"));
+    }
+
+    #[test]
+    fn test_render_entry_without_drawing() {
+        let config = test_config();
+        let entry = make_entry("alice", "2026-04-09", "Hello!");
+        let form = render_form(&config);
+        let html = render_page(DEFAULT_TEMPLATE, &config, &[entry], &form);
+        assert!(!html.contains("entry-drawing"));
     }
 }
