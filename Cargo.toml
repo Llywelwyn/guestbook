@@ -2,6 +2,9 @@
 name = "guestbook"
 version = "0.1.0"
 edition = "2021"
+description = "A configurable web guestbook made to be easy to use, with entries in plain text files, options for honeypots and captchas to deter spam, and moderation via Telegram bot (or editing entries directly in-file to mark them as approved)."
+license = "MIT"
+repository = "https://git.ily.rs/lew/guestbook"
 
 [dependencies]
 axum = "0.8"
