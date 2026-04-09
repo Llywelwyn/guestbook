@@ -11,8 +11,9 @@ use teloxide::prelude::*;
 async fn main() {
     tracing_subscriber::fmt::init();
 
-    let config = config::Config::load("config.toml").expect("failed to load config.toml");
-    let listen = config.listen.clone();
+    dotenvy::dotenv().ok();
+    let config = config::Config::from_env().expect("failed to load config");
+    let listen = config.listen_addr();
     let entries_dir = config.data_dir.join("entries");
     let chat_id = ChatId(config.telegram_chat_id);
 

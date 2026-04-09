@@ -8,7 +8,7 @@ pub fn render_page(site_title: &str, site_url: &str, entries: &[Entry], form_htm
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>guestbook - {site_title}</title>
+  <title>{site_title}</title>
   <link rel="stylesheet" href="/style.css">
 </head>
 <body>

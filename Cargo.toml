@@ -9,6 +9,7 @@ tokio = { version = "1", features = ["full"] }
 teloxide = { version = "0.13", features = ["macros"] }
 serde = { version = "1", features = ["derive"] }
 toml = "0.8"
+dotenvy = "0.15"
 uuid = { version = "1", features = ["v4"] }
 chrono = "0.4"
 tracing = "0.1"
