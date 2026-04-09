@@ -14,6 +14,7 @@ pub struct Config {
     pub max_message_length: usize,
     pub max_website_length: usize,
     pub open_registration: bool,
+    pub template: Option<String>,
 }
 
 impl Config {
@@ -56,6 +57,10 @@ impl Config {
             open_registration: env::var("BOOK_OPEN_REGISTRATION")
                 .map(|v| v != "false")
                 .unwrap_or(true),
+            template: env::var("BOOK_TEMPLATE").ok().map(|path| {
+                std::fs::read_to_string(&path)
+                    .unwrap_or_else(|e| panic!("failed to read template {path}: {e}"))
+            }),
         })
     }
 }

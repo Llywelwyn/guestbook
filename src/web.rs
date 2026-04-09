@@ -1,7 +1,6 @@
 use axum::{
     extract::State,
-    http::header,
-    response::{Html, IntoResponse},
+    response::Html,
     routing::{get, post},
     Form, Router,
 };
@@ -11,7 +10,7 @@ use uuid::Uuid;
 
 use crate::config::Config;
 use crate::entries::{self, Entry, EntryMeta, Status};
-use crate::render::{self, FORM_HTML, STYLE_CSS};
+use crate::render::{self, DEFAULT_TEMPLATE, FORM_HTML};
 
 pub struct AppState {
     pub config: Config,
@@ -32,7 +31,6 @@ pub fn router(state: Arc<AppState>) -> Router {
     Router::new()
         .route("/", get(index))
         .route("/submit", post(submit))
-        .route("/style.css", get(style))
         .with_state(state)
 }
 
@@ -40,9 +38,10 @@ async fn index(State(state): State<Arc<AppState>>) -> Html<String> {
     let entries_dir = state.config.data_dir.join("entries");
     let entries = entries::read_approved(&entries_dir);
     let form = if state.config.open_registration { FORM_HTML } else { "" };
+    let template = state.config.template.as_deref().unwrap_or(DEFAULT_TEMPLATE);
     let html = render::render_page(
+        template,
         &state.config.site_title,
-        &state.config.site_url,
         &entries,
         form,
     );
@@ -113,10 +112,6 @@ async fn submit(
     Html("Thanks! Your message is pending approval.".to_string())
 }
 
-async fn style() -> impl IntoResponse {
-    ([(header::CONTENT_TYPE, "text/css")], STYLE_CSS)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -138,6 +133,7 @@ mod tests {
             max_message_length: 1000,
             max_website_length: 100,
             open_registration: true,
+            template: None,
         }
     }
 
@@ -268,6 +264,17 @@ mod tests {
         let (app, _rx) = test_app(config);
         let (_, body) = post_form(&app, "name=test&message=hi&website=http://toolong.com").await;
         assert!(body.contains("too long"));
+    }
+
+    #[tokio::test]
+    async fn test_custom_template() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut config = test_config(dir.path());
+        config.template = Some("<html><nav>custom nav</nav>{{form}}{{entries}}</html>".into());
+        let (app, _rx) = test_app(config);
+        let html = get_index(&app).await;
+        assert!(html.contains("custom nav"));
+        assert!(html.contains("action=\"/submit\""));
     }
 
     #[tokio::test]

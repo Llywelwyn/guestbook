@@ -75,6 +75,12 @@ in
       description = "Allow new guestbook submissions. When false, the form is hidden and submissions are rejected.";
     };
 
+    templateFile = mkOption {
+      type = types.nullOr types.path;
+      default = null;
+      description = "Custom HTML template file with {{title}}, {{form}}, and {{entries}} placeholders. Uses built-in default if null.";
+    };
+
     user = mkOption {
       type = types.str;
       default = "guestbook";
@@ -115,6 +121,8 @@ in
           BOOK_MAX_MESSAGE_LENGTH = toString cfg.maxMessageLength;
           BOOK_MAX_WEBSITE_LENGTH = toString cfg.maxWebsiteLength;
           BOOK_OPEN_REGISTRATION = if cfg.openRegistration then "true" else "false";
+        } // lib.optionalAttrs (cfg.templateFile != null) {
+          BOOK_TEMPLATE = cfg.templateFile;
         };
         serviceConfig = {
           Type = "simple";
