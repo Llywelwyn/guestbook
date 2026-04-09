@@ -70,6 +70,18 @@ in
       description = "Allow new guestbook submissions. When false, the form is hidden and submissions are rejected.";
     };
 
+    enableWebsiteField = mkOption {
+      type = types.bool;
+      default = true;
+      description = "Show website field in submission form. When false, the input is hidden and submitted values are ignored.";
+    };
+
+    allowHtmlInjection = mkOption {
+      type = types.bool;
+      default = true;
+      description = "Allow raw HTML/JS in entry names and message bodies. When false, HTML is escaped. Website URLs are always escaped.";
+    };
+
     separator = mkOption {
       type = types.str;
       default = "------------------------------------------------------------";
@@ -176,6 +188,8 @@ in
           BOOK_MAX_MESSAGE_LENGTH = toString cfg.maxMessageLength;
           BOOK_MAX_WEBSITE_LENGTH = toString cfg.maxWebsiteLength;
           BOOK_OPEN_REGISTRATION = if cfg.openRegistration then "true" else "false";
+          BOOK_ENABLE_WEBSITE_FIELD = if cfg.enableWebsiteField then "true" else "false";
+          BOOK_ALLOW_HTML_INJECTION = if cfg.allowHtmlInjection then "true" else "false";
           BOOK_SEPARATOR = cfg.separator;
           BOOK_STYLE = cfg.style;
         } // lib.optionalAttrs (cfg.styleFile != null) {
