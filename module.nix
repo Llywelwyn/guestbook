@@ -81,6 +81,54 @@ in
       description = "Separator between guestbook entries.";
     };
 
+    style = mkOption {
+      type = types.str;
+      default = "";
+      description = "Custom CSS injected into a style tag. Use class names: .guestbook-form, .guestbook-prompt, .guestbook-label, .guestbook-input, .guestbook-textarea, .guestbook-button, .entry-header, .entry-name, .entry-website, .entry-body, .entry-separator";
+    };
+
+    formPrompt = mkOption {
+      type = types.str;
+      default = "If you visited my site, please sign my guestbook!";
+      description = "Text shown above the form.";
+    };
+
+    buttonText = mkOption {
+      type = types.str;
+      default = "sign";
+      description = "Submit button text.";
+    };
+
+    labelName = mkOption {
+      type = types.str;
+      default = "Your name:";
+      description = "Label for the name field.";
+    };
+
+    labelWebsite = mkOption {
+      type = types.str;
+      default = "Your website (optional):";
+      description = "Label for the website field.";
+    };
+
+    labelMessage = mkOption {
+      type = types.str;
+      default = "Your message:";
+      description = "Label for the message field.";
+    };
+
+    textareaRows = mkOption {
+      type = types.int;
+      default = 8;
+      description = "Number of rows for the message textarea.";
+    };
+
+    textareaCols = mkOption {
+      type = types.int;
+      default = 60;
+      description = "Number of columns for the message textarea.";
+    };
+
     templateFile = mkOption {
       type = types.nullOr types.path;
       default = null;
@@ -128,6 +176,14 @@ in
           BOOK_MAX_WEBSITE_LENGTH = toString cfg.maxWebsiteLength;
           BOOK_OPEN_REGISTRATION = if cfg.openRegistration then "true" else "false";
           BOOK_SEPARATOR = cfg.separator;
+          BOOK_STYLE = cfg.style;
+          BOOK_FORM_PROMPT = cfg.formPrompt;
+          BOOK_BUTTON_TEXT = cfg.buttonText;
+          BOOK_LABEL_NAME = cfg.labelName;
+          BOOK_LABEL_WEBSITE = cfg.labelWebsite;
+          BOOK_LABEL_MESSAGE = cfg.labelMessage;
+          BOOK_TEXTAREA_ROWS = toString cfg.textareaRows;
+          BOOK_TEXTAREA_COLS = toString cfg.textareaCols;
         } // lib.optionalAttrs (cfg.templateFile != null) {
           BOOK_TEMPLATE = cfg.templateFile;
         };

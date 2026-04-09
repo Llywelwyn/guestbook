@@ -16,6 +16,14 @@ pub struct Config {
     pub open_registration: bool,
     pub template: Option<String>,
     pub separator: String,
+    pub style: String,
+    pub form_prompt: String,
+    pub button_text: String,
+    pub label_name: String,
+    pub label_website: String,
+    pub label_message: String,
+    pub textarea_rows: u32,
+    pub textarea_cols: u32,
 }
 
 impl Config {
@@ -64,6 +72,25 @@ impl Config {
                 std::fs::read_to_string(&path)
                     .unwrap_or_else(|e| panic!("failed to read template {path}: {e}"))
             }),
+            style: env::var("BOOK_STYLE").unwrap_or_default(),
+            form_prompt: env::var("BOOK_FORM_PROMPT")
+                .unwrap_or_else(|_| "If you visited my site, please sign my guestbook!".into()),
+            button_text: env::var("BOOK_BUTTON_TEXT")
+                .unwrap_or_else(|_| "sign".into()),
+            label_name: env::var("BOOK_LABEL_NAME")
+                .unwrap_or_else(|_| "Your name:".into()),
+            label_website: env::var("BOOK_LABEL_WEBSITE")
+                .unwrap_or_else(|_| "Your website (optional):".into()),
+            label_message: env::var("BOOK_LABEL_MESSAGE")
+                .unwrap_or_else(|_| "Your message:".into()),
+            textarea_rows: env::var("BOOK_TEXTAREA_ROWS")
+                .unwrap_or_else(|_| "8".into())
+                .parse()
+                .map_err(|_| "BOOK_TEXTAREA_ROWS must be a number")?,
+            textarea_cols: env::var("BOOK_TEXTAREA_COLS")
+                .unwrap_or_else(|_| "60".into())
+                .parse()
+                .map_err(|_| "BOOK_TEXTAREA_COLS must be a number")?,
         })
     }
 }

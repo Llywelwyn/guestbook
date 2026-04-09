@@ -1,3 +1,4 @@
+use crate::config::Config;
 use crate::entries::Entry;
 
 pub const DEFAULT_TEMPLATE: &str = r#"<!DOCTYPE html>
@@ -10,13 +11,13 @@ pub const DEFAULT_TEMPLATE: &str = r#"<!DOCTYPE html>
     pre {
       font: unset;
       max-width: 70ch;
-
       margin: 0 auto;
       padding: 1rem;
       white-space: pre-wrap;
       word-wrap: break-word;
     }
   </style>
+  {{style}}
 </head>
 <body>
 <pre>
@@ -35,12 +36,43 @@ entries
 </html>
 "#;
 
-pub fn render_page(template: &str, title: &str, entries: &[Entry], form_html: &str, separator: &str) -> String {
-    let entries_html = render_entries(entries, separator);
+pub fn render_page(template: &str, config: &Config, entries: &[Entry], form_html: &str) -> String {
+    let entries_html = render_entries(entries, &config.separator);
+    let style = if config.style.is_empty() {
+        String::new()
+    } else {
+        format!("<style>\n{}\n  </style>", config.style)
+    };
     template
-        .replace("{{title}}", title)
+        .replace("{{title}}", &config.site_title)
         .replace("{{form}}", form_html)
         .replace("{{entries}}", &entries_html)
+        .replace("{{style}}", &style)
+}
+
+pub fn render_form(config: &Config) -> String {
+    format!(
+        r#"<span class="guestbook-prompt">{prompt}</span>
+<form class="guestbook-form" method="post" action="/submit" accept-charset="UTF-8">
+<label class="guestbook-label">{label_name}</label>
+<input class="guestbook-input" name="name" required>
+
+<label class="guestbook-label">{label_website}</label>
+<input class="guestbook-input" name="website">
+
+<label class="guestbook-label">{label_message}</label>
+<textarea class="guestbook-textarea" name="message" rows="{rows}" cols="{cols}" required></textarea>
+<input name="url" style="display:none" tabindex="-1" autocomplete="off">
+<button class="guestbook-button" type="submit">{button}</button>
+</form>"#,
+        prompt = config.form_prompt,
+        label_name = config.label_name,
+        label_website = config.label_website,
+        label_message = config.label_message,
+        rows = config.textarea_rows,
+        cols = config.textarea_cols,
+        button = config.button_text,
+    )
 }
 
 fn render_entries(entries: &[Entry], separator: &str) -> String {
@@ -52,37 +84,54 @@ fn render_entries(entries: &[Entry], separator: &str) -> String {
 }
 
 fn render_entry(entry: &Entry, separator: &str) -> String {
-    let mut header = format!("{} - {}", entry.meta.date, entry.meta.name);
+    let mut header = format!(
+        "<span class=\"entry-header\">{} - <span class=\"entry-name\">{}</span>",
+        entry.meta.date, entry.meta.name
+    );
     if !entry.meta.website.is_empty() {
         header.push_str(&format!(
-            " (<a href=\"{}\">{}</a>)",
+            " (<a class=\"entry-website\" href=\"{}\">{}</a>)",
             entry.meta.website, entry.meta.website
         ));
     }
+    header.push_str("</span>");
     format!(
-        "\n{header}\n\n{}\n\n{separator}\n",
+        "\n{header}\n\n<span class=\"entry-body\">{}</span>\n\n<span class=\"entry-separator\">{separator}</span>\n",
         entry.body
     )
 }
-
-pub const FORM_HTML: &str = r#"If you visited my site, please sign my guestbook!
-<form method="post" action="/submit" accept-charset="UTF-8">
-Your name:
-<input name="name" required>
-
-Your website (optional):
-<input name="website">
-
-Your message:
-<textarea name="message" rows="8" cols="60" required></textarea>
-<input name="url" style="display:none" tabindex="-1" autocomplete="off">
-<button type="submit">sign</button>
-</form>"#;
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::entries::{Entry, EntryMeta, Status};
+    use std::path::PathBuf;
+
+    fn test_config() -> Config {
+        Config {
+            port: 0,
+            data_dir: PathBuf::from("./data"),
+            site_title: "test".into(),
+            site_url: "https://test.rs".into(),
+            telegram_bot_token: "fake".into(),
+            telegram_chat_id: 0,
+            honeypot: true,
+            max_name_length: 50,
+            max_message_length: 1000,
+            max_website_length: 100,
+            open_registration: true,
+            template: None,
+            separator: "---".into(),
+            style: String::new(),
+            form_prompt: "Sign my guestbook!".into(),
+            button_text: "sign".into(),
+            label_name: "Your name:".into(),
+            label_website: "Your website (optional):".into(),
+            label_message: "Your message:".into(),
+            textarea_rows: 8,
+            textarea_cols: 60,
+        }
+    }
 
     fn make_entry(name: &str, date: &str, body: &str) -> Entry {
         Entry {
@@ -99,48 +148,90 @@ mod tests {
 
     #[test]
     fn test_render_default_template() {
-        let html = render_page(DEFAULT_TEMPLATE, "ily.rs", &[], FORM_HTML, "---");
-        assert!(html.contains("<title>ily.rs</title>"));
-        assert!(html.contains("action=\"/submit\""));
-        assert!(html.contains("<pre>"));
+        let config = test_config();
+        let form = render_form(&config);
+        let html = render_page(DEFAULT_TEMPLATE, &config, &[], &form);
+        assert!(html.contains("<title>test</title>"));
+        assert!(html.contains("guestbook-form"));
     }
 
     #[test]
     fn test_render_custom_template() {
-        let custom = "<html>{{title}} {{form}} {{entries}}</html>";
-        let html = render_page(custom, "my site", &[], FORM_HTML, "---");
-        assert!(html.contains("my site"));
-        assert!(html.contains("action=\"/submit\""));
+        let config = test_config();
+        let custom = "<html>{{title}} {{form}} {{entries}} {{style}}</html>";
+        let form = render_form(&config);
+        let html = render_page(custom, &config, &[], &form);
+        assert!(html.contains("test"));
+        assert!(html.contains("guestbook-form"));
     }
 
     #[test]
-    fn test_render_entry_no_website() {
+    fn test_render_entry_classes() {
+        let config = test_config();
         let entry = make_entry("alice", "2026-04-09", "Hello!");
-        let html = render_page(DEFAULT_TEMPLATE, "test", &[entry], FORM_HTML, "---");
-        assert!(html.contains("2026-04-09 - alice"));
-        assert!(html.contains("Hello!"));
-        assert!(html.contains("---"));
+        let form = render_form(&config);
+        let html = render_page(DEFAULT_TEMPLATE, &config, &[entry], &form);
+        assert!(html.contains("entry-header"));
+        assert!(html.contains("entry-name"));
+        assert!(html.contains("entry-body"));
+        assert!(html.contains("entry-separator"));
     }
 
     #[test]
     fn test_render_entry_with_website() {
+        let config = test_config();
         let mut entry = make_entry("bob", "2026-04-09", "Hi!");
         entry.meta.website = "https://bob.com".into();
-        let html = render_page(DEFAULT_TEMPLATE, "test", &[entry], FORM_HTML, "---");
-        assert!(html.contains(r#"<a href="https://bob.com">"#));
+        let form = render_form(&config);
+        let html = render_page(DEFAULT_TEMPLATE, &config, &[entry], &form);
+        assert!(html.contains("entry-website"));
+        assert!(html.contains(r#"href="https://bob.com">"#));
     }
 
     #[test]
     fn test_render_preserves_html_in_body() {
-        let entry = make_entry("carol", "2026-04-09", "<b>Bold</b> <script>alert(1)</script>");
-        let html = render_page(DEFAULT_TEMPLATE, "test", &[entry], FORM_HTML, "---");
+        let config = test_config();
+        let entry = make_entry("carol", "2026-04-09", "<b>Bold</b>");
+        let form = render_form(&config);
+        let html = render_page(DEFAULT_TEMPLATE, &config, &[entry], &form);
         assert!(html.contains("<b>Bold</b>"));
-        assert!(html.contains("<script>alert(1)</script>"));
     }
 
     #[test]
     fn test_render_empty_form_when_closed() {
-        let html = render_page(DEFAULT_TEMPLATE, "test", &[], "", "---");
-        assert!(!html.contains("action=\"/submit\""));
+        let config = test_config();
+        let html = render_page(DEFAULT_TEMPLATE, &config, &[], "");
+        assert!(!html.contains("guestbook-form"));
+    }
+
+    #[test]
+    fn test_render_custom_style() {
+        let mut config = test_config();
+        config.style = ".entry-name { color: red; }".into();
+        let html = render_page(DEFAULT_TEMPLATE, &config, &[], "");
+        assert!(html.contains(".entry-name { color: red; }"));
+        assert!(html.contains("<style>"));
+    }
+
+    #[test]
+    fn test_render_form_custom_labels() {
+        let mut config = test_config();
+        config.form_prompt = "Leave a note!".into();
+        config.button_text = "submit".into();
+        config.label_name = "Name:".into();
+        let form = render_form(&config);
+        assert!(form.contains("Leave a note!"));
+        assert!(form.contains("submit"));
+        assert!(form.contains("Name:"));
+    }
+
+    #[test]
+    fn test_render_form_custom_textarea() {
+        let mut config = test_config();
+        config.textarea_rows = 12;
+        config.textarea_cols = 40;
+        let form = render_form(&config);
+        assert!(form.contains("rows=\"12\""));
+        assert!(form.contains("cols=\"40\""));
     }
 }

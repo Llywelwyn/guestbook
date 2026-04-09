@@ -10,7 +10,7 @@ use uuid::Uuid;
 
 use crate::config::Config;
 use crate::entries::{self, Entry, EntryMeta, Status};
-use crate::render::{self, DEFAULT_TEMPLATE, FORM_HTML};
+use crate::render::{self, DEFAULT_TEMPLATE};
 
 pub struct AppState {
     pub config: Config,
@@ -37,14 +37,17 @@ pub fn router(state: Arc<AppState>) -> Router {
 async fn index(State(state): State<Arc<AppState>>) -> Html<String> {
     let entries_dir = state.config.data_dir.join("entries");
     let entries = entries::read_approved(&entries_dir);
-    let form = if state.config.open_registration { FORM_HTML } else { "" };
+    let form = if state.config.open_registration {
+        render::render_form(&state.config)
+    } else {
+        String::new()
+    };
     let template = state.config.template.as_deref().unwrap_or(DEFAULT_TEMPLATE);
     let html = render::render_page(
         template,
-        &state.config.site_title,
+        &state.config,
         &entries,
-        form,
-        &state.config.separator,
+        &form,
     );
     Html(html)
 }
@@ -136,6 +139,14 @@ mod tests {
             open_registration: true,
             template: None,
             separator: "---".into(),
+            style: String::new(),
+            form_prompt: "Sign my guestbook!".into(),
+            button_text: "sign".into(),
+            label_name: "Your name:".into(),
+            label_website: "Your website (optional):".into(),
+            label_message: "Your message:".into(),
+            textarea_rows: 8,
+            textarea_cols: 60,
         }
     }
 
