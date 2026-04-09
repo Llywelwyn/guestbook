@@ -18,9 +18,17 @@ async fn notify(bot: &Bot, chat_id: ChatId, entry: &Entry) {
 }
 
 /// Listen for new entries on the channel and send Telegram notifications.
-pub async fn notification_task(bot: Bot, chat_id: ChatId, mut rx: Receiver<Entry>) {
-    while let Some(entry) = rx.recv().await {
+pub async fn notification_task(bot: Bot, chat_id: ChatId, mut rx: Receiver<(Entry, Option<Vec<u8>>)>) {
+    while let Some((entry, drawing_bytes)) = rx.recv().await {
         notify(&bot, chat_id, &entry).await;
+        if let Some(bytes) = drawing_bytes {
+            if let Err(e) = bot.send_photo(
+                chat_id,
+                teloxide::types::InputFile::memory(bytes).file_name("drawing.png"),
+            ).await {
+                tracing::error!("failed to send drawing photo: {e}");
+            }
+        }
     }
 }
 

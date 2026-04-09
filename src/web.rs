@@ -18,7 +18,7 @@ use crate::render::{self, DEFAULT_TEMPLATE};
 
 pub struct AppState {
     pub config: Config,
-    pub tx: tokio::sync::mpsc::Sender<Entry>,
+    pub tx: tokio::sync::mpsc::Sender<(Entry, Option<Vec<u8>>)>,
 }
 
 #[derive(Deserialize)]
@@ -205,8 +205,6 @@ async fn submit(
     } else {
         String::new()
     };
-    let _ = drawing_bytes;
-
     let entry = Entry {
         id: filename.trim_end_matches(".txt").to_string(),
         meta: EntryMeta {
@@ -229,7 +227,7 @@ async fn submit(
     }
 
     // Notify telegram task
-    let _ = state.tx.send(entry).await;
+    let _ = state.tx.send((entry, drawing_bytes)).await;
 
     Html("Thanks! Your message is pending approval.".to_string())
 }
@@ -280,7 +278,7 @@ mod tests {
         }
     }
 
-    fn test_app(config: Config) -> (Router, tokio::sync::mpsc::Receiver<Entry>) {
+    fn test_app(config: Config) -> (Router, tokio::sync::mpsc::Receiver<(Entry, Option<Vec<u8>>)>) {
         let (tx, rx) = tokio::sync::mpsc::channel(32);
         let state = Arc::new(AppState { config, tx });
         (router(state), rx)

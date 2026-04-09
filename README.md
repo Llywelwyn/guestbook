@@ -196,17 +196,24 @@ services.guestbook = {
     forwardAuth = null; # e.g. "localhost:9090"
   };
 
-  security = {
-    enableSubmissions = true;
-    enableHtmlInjection = false;
-    enableWebsiteLinks = true;
-    enableHoneypot = true;
-    captcha = {
+  features = {
+    submissions.enable = true;
+    websites.enable = true;
+    drawing = {
       enable = false;
-      question = "";
-      answer = "";
-      exact = false;
-      caseSensitive = false;
+      canvasWidth = 400;
+      canvasHeight = 200;
+    };
+    security = {
+      htmlInjection.enable = false;
+      honeypot.enable = true;
+      captcha = {
+        enable = false;
+        question = "";
+        answer = "";
+        exact = false;
+        caseSensitive = false;
+      };
     };
   };
 
@@ -233,6 +240,7 @@ services.guestbook = {
       name = "Your name:";
       website = "Your website (optional):";
       message = "Your message:";
+      drawing = "Draw (optional):";
     };
     message = {
       width = 400;

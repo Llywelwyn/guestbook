@@ -57,56 +57,86 @@ in
       };
     };
 
-    security = {
-      enableSubmissions = mkOption {
-        type = types.bool;
-        default = true;
-        description = "Allow new guestbook submissions. When false, the form is hidden and submissions are rejected.";
-      };
-
-      enableHtmlInjection = mkOption {
-        type = types.bool;
-        default = false;
-        description = "Allow raw HTML/JS in entry names and message bodies. When false, HTML is escaped. Website URLs are always escaped.";
-      };
-
-      enableWebsiteLinks = mkOption {
-        type = types.bool;
-        default = true;
-        description = "Show website field in form and render website links in entries. When false, the input is hidden, submitted values are ignored, and existing links are not displayed.";
-      };
-
-      enableHoneypot = mkOption {
-        type = types.bool;
-        default = true;
-        description = "Enable honeypot field for spam prevention.";
-      };
-
-      captcha = {
-        enable = mkEnableOption "captcha on submission form";
-
-        question = mkOption {
-          type = types.str;
-          default = "";
-          description = "Captcha question displayed as a label.";
+    features = {
+      submissions = {
+        enable = mkOption {
+          type = types.bool;
+          default = true;
+          description = "Allow new guestbook submissions. When false, the form is hidden and submissions are rejected.";
         };
+      };
 
-        answer = mkOption {
-          type = types.str;
-          default = "";
-          description = "Captcha answer to validate against.";
+      websites = {
+        enable = mkOption {
+          type = types.bool;
+          default = true;
+          description = "Show website field in form and render website links in entries. When false, the input is hidden, submitted values are ignored, and existing links are not displayed.";
         };
+      };
 
-        exact = mkOption {
+      drawing = {
+        enable = mkOption {
           type = types.bool;
           default = false;
-          description = "Require exact match. When false, the answer just needs to be contained in the response.";
+          description = "Enable the drawing canvas in the submission form. Stores PNG files in dataDir/drawings/.";
         };
 
-        caseSensitive = mkOption {
-          type = types.bool;
-          default = false;
-          description = "Require case-sensitive match.";
+        canvasWidth = mkOption {
+          type = types.int;
+          default = 400;
+          description = "Drawing canvas width in pixels.";
+        };
+
+        canvasHeight = mkOption {
+          type = types.int;
+          default = 200;
+          description = "Drawing canvas height in pixels.";
+        };
+      };
+
+      security = {
+        htmlInjection = {
+          enable = mkOption {
+            type = types.bool;
+            default = false;
+            description = "Allow raw HTML/JS in entry names and message bodies. When false, HTML is escaped. Website URLs are always escaped.";
+          };
+        };
+
+        honeypot = {
+          enable = mkOption {
+            type = types.bool;
+            default = true;
+            description = "Enable honeypot field for spam prevention.";
+          };
+        };
+
+        captcha = {
+          enable = mkEnableOption "captcha on submission form";
+
+          question = mkOption {
+            type = types.str;
+            default = "";
+            description = "Captcha question displayed as a label.";
+          };
+
+          answer = mkOption {
+            type = types.str;
+            default = "";
+            description = "Captcha answer to validate against.";
+          };
+
+          exact = mkOption {
+            type = types.bool;
+            default = false;
+            description = "Require exact match. When false, the answer just needs to be contained in the response.";
+          };
+
+          caseSensitive = mkOption {
+            type = types.bool;
+            default = false;
+            description = "Require case-sensitive match.";
+          };
         };
       };
     };
@@ -149,7 +179,7 @@ in
       css = mkOption {
         type = types.str;
         default = "";
-        description = "Custom CSS injected into a style tag. Use class names: .guestbook-form, .guestbook-prompt, .guestbook-label, .guestbook-input, .guestbook-textarea, .guestbook-button, .entry-header, .entry-name, .entry-website, .entry-body, .entry-separator";
+        description = "Custom CSS injected into a style tag. Use class names: .guestbook-form, .guestbook-prompt, .guestbook-label, .guestbook-input, .guestbook-textarea, .guestbook-button, .guestbook-canvas, .entry-header, .entry-name, .entry-website, .entry-body, .entry-drawing, .entry-separator";
       };
 
       cssFile = mkOption {
@@ -200,6 +230,12 @@ in
           default = "Your message:";
           description = "Label for the message field.";
         };
+
+        drawing = mkOption {
+          type = types.str;
+          default = "Draw (optional):";
+          description = "Label for the drawing canvas.";
+        };
       };
 
       message = {
@@ -230,15 +266,16 @@ in
           BOOK_DATA_DIR = cfg.dataDir;
           BOOK_SITE_TITLE = cfg.siteTitle;
 
-          BOOK_ENABLE_HONEYPOT = if cfg.security.enableHoneypot then "true" else "false";
-          BOOK_ENABLE_SUBMISSIONS = if cfg.security.enableSubmissions then "true" else "false";
-          BOOK_ENABLE_HTML_INJECTION = if cfg.security.enableHtmlInjection then "true" else "false";
-          BOOK_ENABLE_WEBSITE_LINKS = if cfg.security.enableWebsiteLinks then "true" else "false";
-          BOOK_ENABLE_CAPTCHA = if cfg.security.captcha.enable then "true" else "false";
-          BOOK_CAPTCHA_QUESTION = cfg.security.captcha.question;
-          BOOK_CAPTCHA_ANSWER = cfg.security.captcha.answer;
-          BOOK_CAPTCHA_EXACT = if cfg.security.captcha.exact then "true" else "false";
-          BOOK_CAPTCHA_CASESENSITIVE = if cfg.security.captcha.caseSensitive then "true" else "false";
+          BOOK_ENABLE_SUBMISSIONS = if cfg.features.submissions.enable then "true" else "false";
+          BOOK_ENABLE_WEBSITE_LINKS = if cfg.features.websites.enable then "true" else "false";
+          BOOK_ENABLE_DRAWINGS = if cfg.features.drawing.enable then "true" else "false";
+          BOOK_ENABLE_HTML_INJECTION = if cfg.features.security.htmlInjection.enable then "true" else "false";
+          BOOK_ENABLE_HONEYPOT = if cfg.features.security.honeypot.enable then "true" else "false";
+          BOOK_ENABLE_CAPTCHA = if cfg.features.security.captcha.enable then "true" else "false";
+          BOOK_CAPTCHA_QUESTION = cfg.features.security.captcha.question;
+          BOOK_CAPTCHA_ANSWER = cfg.features.security.captcha.answer;
+          BOOK_CAPTCHA_EXACT = if cfg.features.security.captcha.exact then "true" else "false";
+          BOOK_CAPTCHA_CASESENSITIVE = if cfg.features.security.captcha.caseSensitive then "true" else "false";
           BOOK_MAX_NAME_LENGTH = toString cfg.limits.name;
           BOOK_MAX_MESSAGE_LENGTH = toString cfg.limits.message;
           BOOK_MAX_WEBSITE_LENGTH = toString cfg.limits.website;
@@ -249,6 +286,9 @@ in
           BOOK_LABEL_NAME = cfg.styles.labels.name;
           BOOK_LABEL_WEBSITE = cfg.styles.labels.website;
           BOOK_LABEL_MESSAGE = cfg.styles.labels.message;
+          BOOK_LABEL_DRAWING = cfg.styles.labels.drawing;
+          BOOK_CANVAS_WIDTH = toString cfg.features.drawing.canvasWidth;
+          BOOK_CANVAS_HEIGHT = toString cfg.features.drawing.canvasHeight;
           BOOK_TEXTAREA_WIDTH = toString cfg.styles.message.width;
           BOOK_TEXTAREA_HEIGHT = toString cfg.styles.message.height;
         } // lib.optionalAttrs (cfg.styles.cssFile != null) {
@@ -261,7 +301,7 @@ in
         serviceConfig = {
           Type = "simple";
           ExecStartPre = "+${pkgs.writeShellScript "guestbook-prepare" ''
-            mkdir -p ${cfg.dataDir}/entries
+            mkdir -p ${cfg.dataDir}/entries ${cfg.dataDir}/drawings
             chown -R ${cfg.user}:${cfg.group} ${cfg.dataDir}
           ''}";
           Restart = "on-failure";
