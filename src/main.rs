@@ -1,4 +1,5 @@
 mod config;
+mod entries;
 
 fn main() {
     let config = config::Config::load("config.toml").expect("failed to load config.toml");
