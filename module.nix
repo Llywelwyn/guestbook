@@ -30,11 +30,6 @@ in
       description = "Site title shown in nav and page title.";
     };
 
-    siteUrl = mkOption {
-      type = types.str;
-      description = "Base URL of the main site (for absolute nav links).";
-    };
-
     telegramChatId = mkOption {
       type = types.int;
       description = "Telegram chat ID for moderation messages.";
@@ -174,7 +169,7 @@ in
           BOOK_PORT = toString cfg.port;
           BOOK_DATA_DIR = cfg.dataDir;
           BOOK_SITE_TITLE = cfg.siteTitle;
-          BOOK_SITE_URL = cfg.siteUrl;
+
           BOOK_TELEGRAM_CHAT_ID = toString cfg.telegramChatId;
           BOOK_HONEYPOT = if cfg.honeypot then "true" else "false";
           BOOK_MAX_NAME_LENGTH = toString cfg.maxNameLength;

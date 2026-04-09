@@ -6,7 +6,7 @@ pub struct Config {
     pub port: u16,
     pub data_dir: PathBuf,
     pub site_title: String,
-    pub site_url: String,
+
     pub telegram_bot_token: String,
     pub telegram_chat_id: i64,
     pub honeypot: bool,
@@ -41,7 +41,7 @@ impl Config {
                 .map(PathBuf::from)
                 .unwrap_or_else(|_| PathBuf::from("./data")),
             site_title: env::var("BOOK_SITE_TITLE").unwrap_or_else(|_| "guestbook".into()),
-            site_url: env::var("BOOK_SITE_URL").map_err(|_| "BOOK_SITE_URL is required")?,
+
             telegram_bot_token: env::var("BOOK_TELEGRAM_BOT_TOKEN")
                 .map_err(|_| "BOOK_TELEGRAM_BOT_TOKEN is required")?,
             telegram_chat_id: env::var("BOOK_TELEGRAM_CHAT_ID")
@@ -115,7 +115,6 @@ mod tests {
         env::set_var("BOOK_PORT", "9999");
         env::set_var("BOOK_DATA_DIR", "/tmp/gb");
         env::set_var("BOOK_SITE_TITLE", "test.rs");
-        env::set_var("BOOK_SITE_URL", "https://test.rs");
         env::set_var("BOOK_TELEGRAM_BOT_TOKEN", "123:ABC");
         env::set_var("BOOK_TELEGRAM_CHAT_ID", "12345");
 
@@ -124,14 +123,12 @@ mod tests {
         assert_eq!(config.listen_addr(), "127.0.0.1:9999");
         assert_eq!(config.data_dir, PathBuf::from("/tmp/gb"));
         assert_eq!(config.site_title, "test.rs");
-        assert_eq!(config.site_url, "https://test.rs");
         assert_eq!(config.telegram_chat_id, 12345);
 
         // Clean up
         env::remove_var("BOOK_PORT");
         env::remove_var("BOOK_DATA_DIR");
         env::remove_var("BOOK_SITE_TITLE");
-        env::remove_var("BOOK_SITE_URL");
         env::remove_var("BOOK_TELEGRAM_BOT_TOKEN");
         env::remove_var("BOOK_TELEGRAM_CHAT_ID");
     }
@@ -139,7 +136,6 @@ mod tests {
     #[test]
     fn test_defaults() {
         let _lock = ENV_LOCK.lock().unwrap();
-        env::set_var("BOOK_SITE_URL", "https://test.rs");
         env::set_var("BOOK_TELEGRAM_BOT_TOKEN", "123:ABC");
         env::set_var("BOOK_TELEGRAM_CHAT_ID", "12345");
 
@@ -148,7 +144,6 @@ mod tests {
         assert_eq!(config.data_dir, PathBuf::from("./data"));
         assert_eq!(config.site_title, "guestbook");
 
-        env::remove_var("BOOK_SITE_URL");
         env::remove_var("BOOK_TELEGRAM_BOT_TOKEN");
         env::remove_var("BOOK_TELEGRAM_CHAT_ID");
     }
@@ -156,7 +151,6 @@ mod tests {
     #[test]
     fn test_missing_required() {
         let _lock = ENV_LOCK.lock().unwrap();
-        env::remove_var("BOOK_SITE_URL");
         env::remove_var("BOOK_TELEGRAM_BOT_TOKEN");
         env::remove_var("BOOK_TELEGRAM_CHAT_ID");
 

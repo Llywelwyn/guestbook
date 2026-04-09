@@ -129,7 +129,7 @@ mod tests {
             port: 0,
             data_dir: dir.to_path_buf(),
             site_title: "test".into(),
-            site_url: "https://test.rs".into(),
+
             telegram_bot_token: "fake".into(),
             telegram_chat_id: 0,
             honeypot: true,
