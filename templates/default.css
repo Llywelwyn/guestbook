@@ -1,8 +1,23 @@
-pre {
-  font: unset;
+/* Page container */
+.page-container {
   max-width: 70ch;
   margin: 0 auto;
   padding: 1rem;
   white-space: pre-wrap;
   word-wrap: break-word;
 }
+
+/* Form */
+.guestbook-prompt {}
+.guestbook-form {}
+.guestbook-label {}
+.guestbook-input {}
+.guestbook-textarea {}
+.guestbook-button {}
+
+/* Entries */
+.entry-header {}
+.entry-name {}
+.entry-website {}
+.entry-body {}
+.entry-separator {}

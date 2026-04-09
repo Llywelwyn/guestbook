@@ -1,3 +1,34 @@
+<!--
+  Default guestbook template.
+  Copy this file and point BOOK_TEMPLATE at your copy to customize.
+
+  Available placeholders:
+
+    {{title}}   - Site title (BOOK_SITE_TITLE). Useful in <title> and headings.
+    {{form}}    - The submission form (labels, inputs, button). Controlled by
+                  BOOK_FORM_PROMPT, BOOK_LABEL_NAME, BOOK_LABEL_WEBSITE,
+                  BOOK_LABEL_MESSAGE, BOOK_BUTTON_TEXT, BOOK_TEXTAREA_ROWS,
+                  BOOK_TEXTAREA_COLS. Empty when BOOK_OPEN_REGISTRATION=false.
+    {{entries}} - Approved guestbook entries, newest first. Entry separator
+                  controlled by BOOK_SEPARATOR.
+    {{style}}   - Custom CSS from BOOK_STYLE or BOOK_STYLE_FILE, wrapped in
+                  a <style> tag. Empty when neither is set.
+
+  Available CSS classes on rendered elements:
+
+    .page-container      - Main page wrapper
+    .guestbook-prompt    - Text above the form
+    .guestbook-form      - The <form> element
+    .guestbook-label     - Field labels
+    .guestbook-input     - Text inputs (name, website)
+    .guestbook-textarea  - Message textarea
+    .guestbook-button    - Submit button
+    .entry-header        - Entry date/name/website line
+    .entry-name          - Author name within the header
+    .entry-website       - Website link within the header
+    .entry-body          - Entry message content (raw HTML, not escaped)
+    .entry-separator     - Divider between entries
+-->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -5,10 +36,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{{title}}</title>
   <style>
-    pre {
-      font: unset;
+    .page-container {
       max-width: 70ch;
-
       margin: 0 auto;
       padding: 1rem;
       white-space: pre-wrap;
@@ -18,7 +47,7 @@
   {{style}}
 </head>
 <body>
-<pre>
+<div class="page-container">
 {{title}}
 
 guestbook
@@ -29,6 +58,6 @@ guestbook
 entries
 =======
 {{entries}}
-</pre>
+</div>
 </body>
 </html>

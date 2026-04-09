@@ -8,8 +8,7 @@ pub const DEFAULT_TEMPLATE: &str = r#"<!DOCTYPE html>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{{title}}</title>
   <style>
-    pre {
-      font: unset;
+    .page-container {
       max-width: 70ch;
       margin: 0 auto;
       padding: 1rem;
@@ -20,7 +19,7 @@ pub const DEFAULT_TEMPLATE: &str = r#"<!DOCTYPE html>
   {{style}}
 </head>
 <body>
-<pre>
+<div class="page-container">
 {{title}}
 
 guestbook
@@ -31,7 +30,7 @@ guestbook
 entries
 =======
 {{entries}}
-</pre>
+</div>
 </body>
 </html>
 "#;
