@@ -69,6 +69,12 @@ in
       description = "Maximum length for website URLs. 0 for unlimited.";
     };
 
+    openRegistration = mkOption {
+      type = types.bool;
+      default = true;
+      description = "Allow new guestbook submissions. When false, the form is hidden and submissions are rejected.";
+    };
+
     user = mkOption {
       type = types.str;
       default = "guestbook";
@@ -108,6 +114,7 @@ in
           BOOK_MAX_NAME_LENGTH = toString cfg.maxNameLength;
           BOOK_MAX_MESSAGE_LENGTH = toString cfg.maxMessageLength;
           BOOK_MAX_WEBSITE_LENGTH = toString cfg.maxWebsiteLength;
+          BOOK_OPEN_REGISTRATION = if cfg.openRegistration then "true" else "false";
         };
         serviceConfig = {
           Type = "simple";

@@ -39,11 +39,12 @@ pub fn router(state: Arc<AppState>) -> Router {
 async fn index(State(state): State<Arc<AppState>>) -> Html<String> {
     let entries_dir = state.config.data_dir.join("entries");
     let entries = entries::read_approved(&entries_dir);
+    let form = if state.config.open_registration { FORM_HTML } else { "" };
     let html = render::render_page(
         &state.config.site_title,
         &state.config.site_url,
         &entries,
-        FORM_HTML,
+        form,
     );
     Html(html)
 }
@@ -52,6 +53,10 @@ async fn submit(
     State(state): State<Arc<AppState>>,
     Form(form): Form<SubmitForm>,
 ) -> Html<String> {
+    if !state.config.open_registration {
+        return Html("Submissions are closed.".to_string());
+    }
+
     // Honeypot check — silently discard
     if state.config.honeypot && !form.url.is_empty() {
         return Html("Thanks! Your message is pending approval.".to_string());

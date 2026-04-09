@@ -13,6 +13,7 @@ pub struct Config {
     pub max_name_length: usize,
     pub max_message_length: usize,
     pub max_website_length: usize,
+    pub open_registration: bool,
 }
 
 impl Config {
@@ -52,6 +53,9 @@ impl Config {
                 .unwrap_or_else(|_| "100".into())
                 .parse()
                 .map_err(|_| "BOOK_MAX_WEBSITE_LENGTH must be a number")?,
+            open_registration: env::var("BOOK_OPEN_REGISTRATION")
+                .map(|v| v != "false")
+                .unwrap_or(true),
         })
     }
 }
