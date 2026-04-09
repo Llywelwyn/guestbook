@@ -35,23 +35,23 @@ entries
 </html>
 "#;
 
-pub fn render_page(template: &str, title: &str, entries: &[Entry], form_html: &str) -> String {
-    let entries_html = render_entries(entries);
+pub fn render_page(template: &str, title: &str, entries: &[Entry], form_html: &str, separator: &str) -> String {
+    let entries_html = render_entries(entries, separator);
     template
         .replace("{{title}}", title)
         .replace("{{form}}", form_html)
         .replace("{{entries}}", &entries_html)
 }
 
-fn render_entries(entries: &[Entry]) -> String {
+fn render_entries(entries: &[Entry], separator: &str) -> String {
     let mut html = String::new();
     for entry in entries {
-        html.push_str(&render_entry(entry));
+        html.push_str(&render_entry(entry, separator));
     }
     html
 }
 
-fn render_entry(entry: &Entry) -> String {
+fn render_entry(entry: &Entry, separator: &str) -> String {
     let mut header = format!("{} - {}", entry.meta.date, entry.meta.name);
     if !entry.meta.website.is_empty() {
         header.push_str(&format!(
@@ -60,7 +60,7 @@ fn render_entry(entry: &Entry) -> String {
         ));
     }
     format!(
-        "\n{header}\n\n{}\n\n------------------------------------------------------------\n",
+        "\n{header}\n\n{}\n\n{separator}\n",
         entry.body
     )
 }
@@ -99,16 +99,16 @@ mod tests {
 
     #[test]
     fn test_render_default_template() {
-        let html = render_page(DEFAULT_TEMPLATE, "ily.rs", &[], FORM_HTML);
+        let html = render_page(DEFAULT_TEMPLATE, "ily.rs", &[], FORM_HTML, "---");
         assert!(html.contains("<title>ily.rs</title>"));
         assert!(html.contains("action=\"/submit\""));
-        assert!(html.contains("<pre style=font:unset>"));
+        assert!(html.contains("<pre>"));
     }
 
     #[test]
     fn test_render_custom_template() {
         let custom = "<html>{{title}} {{form}} {{entries}}</html>";
-        let html = render_page(custom, "my site", &[], FORM_HTML);
+        let html = render_page(custom, "my site", &[], FORM_HTML, "---");
         assert!(html.contains("my site"));
         assert!(html.contains("action=\"/submit\""));
     }
@@ -116,31 +116,31 @@ mod tests {
     #[test]
     fn test_render_entry_no_website() {
         let entry = make_entry("alice", "2026-04-09", "Hello!");
-        let html = render_page(DEFAULT_TEMPLATE, "test", &[entry], FORM_HTML);
+        let html = render_page(DEFAULT_TEMPLATE, "test", &[entry], FORM_HTML, "---");
         assert!(html.contains("2026-04-09 - alice"));
         assert!(html.contains("Hello!"));
-        assert!(html.contains("----"));
+        assert!(html.contains("---"));
     }
 
     #[test]
     fn test_render_entry_with_website() {
         let mut entry = make_entry("bob", "2026-04-09", "Hi!");
         entry.meta.website = "https://bob.com".into();
-        let html = render_page(DEFAULT_TEMPLATE, "test", &[entry], FORM_HTML);
+        let html = render_page(DEFAULT_TEMPLATE, "test", &[entry], FORM_HTML, "---");
         assert!(html.contains(r#"<a href="https://bob.com">"#));
     }
 
     #[test]
     fn test_render_preserves_html_in_body() {
         let entry = make_entry("carol", "2026-04-09", "<b>Bold</b> <script>alert(1)</script>");
-        let html = render_page(DEFAULT_TEMPLATE, "test", &[entry], FORM_HTML);
+        let html = render_page(DEFAULT_TEMPLATE, "test", &[entry], FORM_HTML, "---");
         assert!(html.contains("<b>Bold</b>"));
         assert!(html.contains("<script>alert(1)</script>"));
     }
 
     #[test]
     fn test_render_empty_form_when_closed() {
-        let html = render_page(DEFAULT_TEMPLATE, "test", &[], "");
+        let html = render_page(DEFAULT_TEMPLATE, "test", &[], "", "---");
         assert!(!html.contains("action=\"/submit\""));
     }
 }

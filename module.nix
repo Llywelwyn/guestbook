@@ -75,6 +75,12 @@ in
       description = "Allow new guestbook submissions. When false, the form is hidden and submissions are rejected.";
     };
 
+    separator = mkOption {
+      type = types.str;
+      default = "------------------------------------------------------------";
+      description = "Separator between guestbook entries.";
+    };
+
     templateFile = mkOption {
       type = types.nullOr types.path;
       default = null;
@@ -121,6 +127,7 @@ in
           BOOK_MAX_MESSAGE_LENGTH = toString cfg.maxMessageLength;
           BOOK_MAX_WEBSITE_LENGTH = toString cfg.maxWebsiteLength;
           BOOK_OPEN_REGISTRATION = if cfg.openRegistration then "true" else "false";
+          BOOK_SEPARATOR = cfg.separator;
         } // lib.optionalAttrs (cfg.templateFile != null) {
           BOOK_TEMPLATE = cfg.templateFile;
         };

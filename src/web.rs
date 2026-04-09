@@ -44,6 +44,7 @@ async fn index(State(state): State<Arc<AppState>>) -> Html<String> {
         &state.config.site_title,
         &entries,
         form,
+        &state.config.separator,
     );
     Html(html)
 }
@@ -134,6 +135,7 @@ mod tests {
             max_website_length: 100,
             open_registration: true,
             template: None,
+            separator: "---".into(),
         }
     }
 
