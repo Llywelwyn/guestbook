@@ -53,7 +53,7 @@ async fn submit(
     Form(form): Form<SubmitForm>,
 ) -> Html<String> {
     // Honeypot check — silently discard
-    if !form.url.is_empty() {
+    if state.config.honeypot && !form.url.is_empty() {
         return Html("Thanks! Your message is pending approval.".to_string());
     }
 

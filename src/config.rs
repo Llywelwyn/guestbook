@@ -9,6 +9,7 @@ pub struct Config {
     pub site_url: String,
     pub telegram_bot_token: String,
     pub telegram_chat_id: i64,
+    pub honeypot: bool,
 }
 
 impl Config {
@@ -33,6 +34,9 @@ impl Config {
                 .map_err(|_| "BOOK_TELEGRAM_CHAT_ID is required")?
                 .parse()
                 .map_err(|_| "BOOK_TELEGRAM_CHAT_ID must be an integer")?,
+            honeypot: env::var("BOOK_HONEYPOT")
+                .map(|v| v != "false")
+                .unwrap_or(true),
         })
     }
 }

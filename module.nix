@@ -45,6 +45,12 @@ in
       description = "Path to a file containing the Telegram bot token.";
     };
 
+    honeypot = mkOption {
+      type = types.bool;
+      default = true;
+      description = "Enable honeypot field for spam prevention.";
+    };
+
     user = mkOption {
       type = types.str;
       default = "guestbook";
@@ -80,6 +86,7 @@ in
           BOOK_SITE_TITLE = cfg.siteTitle;
           BOOK_SITE_URL = cfg.siteUrl;
           BOOK_TELEGRAM_CHAT_ID = toString cfg.telegramChatId;
+          BOOK_HONEYPOT = if cfg.honeypot then "true" else "false";
         };
         serviceConfig = {
           Type = "simple";
