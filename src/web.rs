@@ -742,6 +742,6 @@ mod tests {
             .unwrap()
             .collect();
         let content = std::fs::read_to_string(entries[0].as_ref().unwrap().path()).unwrap();
-        assert!(!content.contains("drawing = \"2026"));
+        assert!(content.contains("drawing = \"\""));
     }
 }
