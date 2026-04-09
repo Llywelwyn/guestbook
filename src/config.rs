@@ -33,8 +33,8 @@ pub struct Config {
     pub label_name: String,
     pub label_website: String,
     pub label_message: String,
-    pub textarea_rows: u32,
-    pub textarea_cols: u32,
+    pub textarea_width: u32,
+    pub textarea_height: u32,
 }
 
 impl Config {
@@ -138,14 +138,14 @@ impl Config {
                 .unwrap_or_else(|_| "Your website (optional):".into()),
             label_message: env::var("BOOK_LABEL_MESSAGE")
                 .unwrap_or_else(|_| "Your message:".into()),
-            textarea_rows: env::var("BOOK_TEXTAREA_ROWS")
-                .unwrap_or_else(|_| "8".into())
+            textarea_width: env::var("BOOK_TEXTAREA_WIDTH")
+                .unwrap_or_else(|_| "400".into())
                 .parse()
-                .map_err(|_| "BOOK_TEXTAREA_ROWS must be a number")?,
-            textarea_cols: env::var("BOOK_TEXTAREA_COLS")
-                .unwrap_or_else(|_| "60".into())
+                .map_err(|_| "BOOK_TEXTAREA_WIDTH must be a number")?,
+            textarea_height: env::var("BOOK_TEXTAREA_HEIGHT")
+                .unwrap_or_else(|_| "150".into())
                 .parse()
-                .map_err(|_| "BOOK_TEXTAREA_COLS must be a number")?,
+                .map_err(|_| "BOOK_TEXTAREA_HEIGHT must be a number")?,
         })
     }
 }

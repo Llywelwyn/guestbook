@@ -203,16 +203,16 @@ in
       };
 
       message = {
-        rows = mkOption {
+        width = mkOption {
           type = types.int;
-          default = 8;
-          description = "Number of rows for the message textarea.";
+          default = 400;
+          description = "Message textarea width in pixels.";
         };
 
-        cols = mkOption {
+        height = mkOption {
           type = types.int;
-          default = 60;
-          description = "Number of columns for the message textarea.";
+          default = 150;
+          description = "Message textarea height in pixels.";
         };
       };
     };
@@ -249,8 +249,8 @@ in
           BOOK_LABEL_NAME = cfg.styles.labels.name;
           BOOK_LABEL_WEBSITE = cfg.styles.labels.website;
           BOOK_LABEL_MESSAGE = cfg.styles.labels.message;
-          BOOK_TEXTAREA_ROWS = toString cfg.styles.message.rows;
-          BOOK_TEXTAREA_COLS = toString cfg.styles.message.cols;
+          BOOK_TEXTAREA_WIDTH = toString cfg.styles.message.width;
+          BOOK_TEXTAREA_HEIGHT = toString cfg.styles.message.height;
         } // lib.optionalAttrs (cfg.styles.cssFile != null) {
           BOOK_STYLE_FILE = cfg.styles.cssFile;
         } // lib.optionalAttrs (cfg.styles.templateFile != null) {

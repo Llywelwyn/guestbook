@@ -167,11 +167,11 @@ Running `guestbook` with no env vars will give you a working guestbook on `local
 # Label for the message field.
 # BOOK_LABEL_MESSAGE=Your message:
 
-# Number of rows for the message textarea.
-# BOOK_TEXTAREA_ROWS=8
+# Message textarea width in pixels.
+# BOOK_TEXTAREA_WIDTH=400
 
-# Number of columns for the message textarea.
-# BOOK_TEXTAREA_COLS=60
+# Message textarea height in pixels.
+# BOOK_TEXTAREA_HEIGHT=150
 
 # Custom HTML template file with {{title}}, {{form}}, {{entries}}, and {{style}} placeholders.
 # Uses built-in default if unset.
@@ -235,8 +235,8 @@ services.guestbook = {
       message = "Your message:";
     };
     message = {
-      rows = 8;
-      cols = 60;
+      width = 400;
+      height = 150;
     };
   };
 };
@@ -286,8 +286,8 @@ The `status` field can be `pending`, `approved`, or `denied`. Only approved entr
     title   - Site title (BOOK_SITE_TITLE). Useful in <title> and headings.
     form    - The submission form (labels, inputs, button). Controlled by
               BOOK_FORM_PROMPT, BOOK_LABEL_NAME, BOOK_LABEL_WEBSITE,
-              BOOK_LABEL_MESSAGE, BOOK_BUTTON_TEXT, BOOK_TEXTAREA_ROWS,
-              BOOK_TEXTAREA_COLS. Empty when BOOK_ENABLE_SUBMISSIONS=false.
+              BOOK_LABEL_MESSAGE, BOOK_BUTTON_TEXT, BOOK_TEXTAREA_WIDTH,
+              BOOK_TEXTAREA_HEIGHT. Empty when BOOK_ENABLE_SUBMISSIONS=false.
     entries - Approved guestbook entries, newest first. Entry separator
               controlled by BOOK_SEPARATOR.
     style   - Custom CSS from BOOK_STYLE or BOOK_STYLE_FILE, wrapped in
@@ -339,6 +339,16 @@ entries
 .guestbook-input {}
 .guestbook-textarea {}
 .guestbook-button {}
+
+/* Drawings */
+.guestbook-canvas {
+  border: 1px solid #000;
+  cursor: crosshair;
+}
+.guestbook-canvas-reset {}
+.entry-drawing {
+  max-width: 100%;
+}
 
 /* Entries */
 .entry-header {}

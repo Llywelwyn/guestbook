@@ -12,8 +12,20 @@
 .guestbook-form {}
 .guestbook-label {}
 .guestbook-input {}
-.guestbook-textarea {}
+.guestbook-textarea {
+  box-sizing: border-box;
+}
 .guestbook-button {}
+
+/* Drawings */
+.guestbook-canvas {
+  border: 1px solid #000;
+  cursor: crosshair;
+}
+.guestbook-canvas-reset {}
+.entry-drawing {
+  max-width: 100%;
+}
 
 /* Entries */
 .entry-header {}

@@ -275,8 +275,8 @@ mod tests {
             label_name: "Your name:".into(),
             label_website: "Your website (optional):".into(),
             label_message: "Your message:".into(),
-            textarea_rows: 8,
-            textarea_cols: 60,
+            textarea_width: 400,
+            textarea_height: 150,
         }
     }
 

@@ -40,8 +40,7 @@ pub fn render_form(config: &Config) -> String {
 
     let drawing_section = if config.enable_drawings {
         format!(
-            r##"
-<label class="guestbook-label">{label}</label>
+            r##"<label class="guestbook-label">{label}</label>
 <canvas class="guestbook-canvas" width="{w}" height="{h}"></canvas>
 <a href="#" class="guestbook-canvas-reset">Reset</a>
 <input type="hidden" name="drawing">
@@ -87,7 +86,7 @@ pub fn render_form(config: &Config) -> String {
 <input class="guestbook-input" name="name" required>
 {website_section}
 <label class="guestbook-label">{label_message}</label>
-<textarea class="guestbook-textarea" name="message" rows="{rows}" cols="{cols}" required></textarea>
+<textarea class="guestbook-textarea" name="message" style="width:{tw}px;height:{th}px" required></textarea>
 {captcha_section}
 {drawing_section}
 <input name="url" style="display:none" tabindex="-1" autocomplete="off">
@@ -97,8 +96,8 @@ pub fn render_form(config: &Config) -> String {
         label_name = config.label_name,
         website_section = website_section,
         label_message = config.label_message,
-        rows = config.textarea_rows,
-        cols = config.textarea_cols,
+        tw = config.textarea_width,
+        th = config.textarea_height,
         captcha_section = captcha_section,
         drawing_section = drawing_section,
         button = config.button_text,
@@ -196,8 +195,8 @@ mod tests {
             label_name: "Your name:".into(),
             label_website: "Your website (optional):".into(),
             label_message: "Your message:".into(),
-            textarea_rows: 8,
-            textarea_cols: 60,
+            textarea_width: 400,
+            textarea_height: 150,
         }
     }
 
@@ -298,11 +297,11 @@ mod tests {
     #[test]
     fn test_render_form_custom_textarea() {
         let mut config = test_config();
-        config.textarea_rows = 12;
-        config.textarea_cols = 40;
+        config.textarea_width = 500;
+        config.textarea_height = 200;
         let form = render_form(&config);
-        assert!(form.contains("rows=\"12\""));
-        assert!(form.contains("cols=\"40\""));
+        assert!(form.contains("width:500px"));
+        assert!(form.contains("height:200px"));
     }
 
     #[test]
@@ -424,6 +423,6 @@ mod tests {
         let entry = make_entry("alice", "2026-04-09", "Hello!");
         let form = render_form(&config);
         let html = render_page(DEFAULT_TEMPLATE, &config, &[entry], &form);
-        assert!(!html.contains("entry-drawing"));
+        assert!(!html.contains("<img class=\"entry-drawing\""));
     }
 }
