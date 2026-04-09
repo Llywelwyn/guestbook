@@ -1,8 +1,8 @@
 [package]
 name = "guestbook"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
-description = "A configurable web guestbook made to be easy to use, with entries in plain text files, options for honeypots and captchas to deter spam, and moderation via Telegram bot (or editing entries directly in-file to mark them as approved)."
+description = "A configurable web guestbook made to be easy to use, with entries in plain text files, options for honeypots and captchas to deter spam, and moderation via Telegram bot."
 license = "MIT"
 repository = "https://git.ily.rs/lew/guestbook"
 
