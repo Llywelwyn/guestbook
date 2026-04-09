@@ -5,7 +5,7 @@ pub const DEFAULT_TEMPLATE: &str = include_str!("../templates/default.html");
 pub const DEFAULT_STYLE: &str = include_str!("../templates/default.css");
 
 pub fn render_page(template: &str, config: &Config, entries: &[Entry], form_html: &str) -> String {
-    let entries_html = render_entries(entries, &config.separator);
+    let entries_html = render_entries(entries, config);
     let css = if config.style.is_empty() {
         DEFAULT_STYLE
     } else {
@@ -20,15 +20,21 @@ pub fn render_page(template: &str, config: &Config, entries: &[Entry], form_html
 }
 
 pub fn render_form(config: &Config) -> String {
+    let website_section = if config.enable_website_field {
+        format!(
+            "\n<label class=\"guestbook-label\">{}</label>\n<input class=\"guestbook-input\" name=\"website\">\n",
+            config.label_website
+        )
+    } else {
+        String::new()
+    };
+
     format!(
         r#"<span class="guestbook-prompt">{prompt}</span>
 <form class="guestbook-form" method="post" action="/submit" accept-charset="UTF-8">
 <label class="guestbook-label">{label_name}</label>
 <input class="guestbook-input" name="name" required>
-
-<label class="guestbook-label">{label_website}</label>
-<input class="guestbook-input" name="website">
-
+{website_section}
 <label class="guestbook-label">{label_message}</label>
 <textarea class="guestbook-textarea" name="message" rows="{rows}" cols="{cols}" required></textarea>
 <input name="url" style="display:none" tabindex="-1" autocomplete="off">
@@ -36,7 +42,7 @@ pub fn render_form(config: &Config) -> String {
 </form>"#,
         prompt = config.form_prompt,
         label_name = config.label_name,
-        label_website = config.label_website,
+        website_section = website_section,
         label_message = config.label_message,
         rows = config.textarea_rows,
         cols = config.textarea_cols,
@@ -44,29 +50,48 @@ pub fn render_form(config: &Config) -> String {
     )
 }
 
-fn render_entries(entries: &[Entry], separator: &str) -> String {
+fn escape_html(s: &str) -> String {
+    s.replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+        .replace('"', "&quot;")
+        .replace('\'', "&#x27;")
+}
+
+fn render_entries(entries: &[Entry], config: &Config) -> String {
     let mut html = String::new();
     for entry in entries {
-        html.push_str(&render_entry(entry, separator));
+        html.push_str(&render_entry(entry, config));
     }
     html
 }
 
-fn render_entry(entry: &Entry, separator: &str) -> String {
+fn render_entry(entry: &Entry, config: &Config) -> String {
+    let name = if config.allow_html_injection {
+        entry.meta.name.clone()
+    } else {
+        escape_html(&entry.meta.name)
+    };
     let mut header = format!(
         "<span class=\"entry-header\">{} - <span class=\"entry-name\">{}</span>",
-        entry.meta.date, entry.meta.name
+        entry.meta.date, name
     );
-    if !entry.meta.website.is_empty() {
+    if config.enable_website_field && !entry.meta.website.is_empty() {
+        let website = escape_html(&entry.meta.website);
         header.push_str(&format!(
             " (<a class=\"entry-website\" href=\"{}\">{}</a>)",
-            entry.meta.website, entry.meta.website
+            website, website
         ));
     }
     header.push_str("</span>");
+    let body = if config.allow_html_injection {
+        entry.body.clone()
+    } else {
+        escape_html(&entry.body)
+    };
     format!(
-        "\n{header}\n\n<span class=\"entry-body\">{}</span>\n\n<span class=\"entry-separator\">{separator}</span>\n",
-        entry.body
+        "\n{header}\n\n<span class=\"entry-body\">{body}</span>\n\n<span class=\"entry-separator\">{}</span>\n",
+        config.separator
     )
 }
 
@@ -89,6 +114,8 @@ mod tests {
             max_message_length: 1000,
             max_website_length: 100,
             open_registration: true,
+            enable_website_field: true,
+            allow_html_injection: true,
             template: None,
             separator: "---".into(),
             style: String::new(),
@@ -202,5 +229,75 @@ mod tests {
         let form = render_form(&config);
         assert!(form.contains("rows=\"12\""));
         assert!(form.contains("cols=\"40\""));
+    }
+
+    #[test]
+    fn test_render_form_hides_website_when_disabled() {
+        let mut config = test_config();
+        config.enable_website_field = false;
+        let form = render_form(&config);
+        assert!(!form.contains("name=\"website\""));
+        assert!(!form.contains(&config.label_website));
+    }
+
+    #[test]
+    fn test_render_form_shows_website_when_enabled() {
+        let config = test_config();
+        let form = render_form(&config);
+        assert!(form.contains("name=\"website\""));
+        assert!(form.contains(&config.label_website));
+    }
+
+    #[test]
+    fn test_render_entry_always_escapes_website() {
+        let config = test_config();
+        let mut entry = make_entry("bob", "2026-04-09", "Hi!");
+        entry.meta.website = "https://example.com?a=1&b=2".into();
+        let form = render_form(&config);
+        let html = render_page(DEFAULT_TEMPLATE, &config, &[entry], &form);
+        assert!(html.contains("href=\"https://example.com?a=1&amp;b=2\""));
+        assert!(!html.contains("href=\"https://example.com?a=1&b=2\""));
+    }
+
+    #[test]
+    fn test_render_entry_hides_website_when_disabled() {
+        let mut config = test_config();
+        config.enable_website_field = false;
+        let mut entry = make_entry("bob", "2026-04-09", "Hi!");
+        entry.meta.website = "https://bob.com".into();
+        let form = render_form(&config);
+        let html = render_page(DEFAULT_TEMPLATE, &config, &[entry], &form);
+        assert!(!html.contains("href=\"https://bob.com\""));
+        assert!(!html.contains("class=\"entry-website\""));
+    }
+
+    #[test]
+    fn test_render_entry_escapes_html_when_injection_disabled() {
+        let mut config = test_config();
+        config.allow_html_injection = false;
+        let entry = make_entry("<b>hacker</b>", "2026-04-09", "<script>alert('xss')</script>");
+        let form = render_form(&config);
+        let html = render_page(DEFAULT_TEMPLATE, &config, &[entry], &form);
+        assert!(html.contains("&lt;b&gt;hacker&lt;/b&gt;"));
+        assert!(html.contains("&lt;script&gt;alert(&#x27;xss&#x27;)&lt;/script&gt;"));
+        assert!(!html.contains("<script>"));
+    }
+
+    #[test]
+    fn test_render_entry_preserves_html_when_injection_enabled() {
+        let mut config = test_config();
+        config.allow_html_injection = true;
+        let entry = make_entry("carol", "2026-04-09", "<b>Bold</b>");
+        let form = render_form(&config);
+        let html = render_page(DEFAULT_TEMPLATE, &config, &[entry], &form);
+        assert!(html.contains("<b>Bold</b>"));
+    }
+
+    #[test]
+    fn test_escape_html() {
+        assert_eq!(
+            escape_html("<b>test</b> & \"quotes\" 'apos'"),
+            "&lt;b&gt;test&lt;/b&gt; &amp; &quot;quotes&quot; &#x27;apos&#x27;"
+        );
     }
 }

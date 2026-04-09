@@ -14,6 +14,8 @@ pub struct Config {
     pub max_message_length: usize,
     pub max_website_length: usize,
     pub open_registration: bool,
+    pub enable_website_field: bool,
+    pub allow_html_injection: bool,
     pub template: Option<String>,
     pub separator: String,
     pub style: String,
@@ -64,6 +66,12 @@ impl Config {
                 .parse()
                 .map_err(|_| "BOOK_MAX_WEBSITE_LENGTH must be a number")?,
             open_registration: env::var("BOOK_OPEN_REGISTRATION")
+                .map(|v| v != "false")
+                .unwrap_or(true),
+            enable_website_field: env::var("BOOK_ENABLE_WEBSITE_FIELD")
+                .map(|v| v != "false")
+                .unwrap_or(true),
+            allow_html_injection: env::var("BOOK_ALLOW_HTML_INJECTION")
                 .map(|v| v != "false")
                 .unwrap_or(true),
             separator: env::var("BOOK_SEPARATOR")
@@ -156,5 +164,63 @@ mod tests {
 
         let result = Config::from_env();
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_enable_website_field_default() {
+        let _lock = ENV_LOCK.lock().unwrap();
+        env::set_var("BOOK_TELEGRAM_BOT_TOKEN", "123:ABC");
+        env::set_var("BOOK_TELEGRAM_CHAT_ID", "12345");
+        env::remove_var("BOOK_ENABLE_WEBSITE_FIELD");
+
+        let config = Config::from_env().unwrap();
+        assert!(config.enable_website_field);
+
+        env::remove_var("BOOK_TELEGRAM_BOT_TOKEN");
+        env::remove_var("BOOK_TELEGRAM_CHAT_ID");
+    }
+
+    #[test]
+    fn test_enable_website_field_false() {
+        let _lock = ENV_LOCK.lock().unwrap();
+        env::set_var("BOOK_TELEGRAM_BOT_TOKEN", "123:ABC");
+        env::set_var("BOOK_TELEGRAM_CHAT_ID", "12345");
+        env::set_var("BOOK_ENABLE_WEBSITE_FIELD", "false");
+
+        let config = Config::from_env().unwrap();
+        assert!(!config.enable_website_field);
+
+        env::remove_var("BOOK_TELEGRAM_BOT_TOKEN");
+        env::remove_var("BOOK_TELEGRAM_CHAT_ID");
+        env::remove_var("BOOK_ENABLE_WEBSITE_FIELD");
+    }
+
+    #[test]
+    fn test_allow_html_injection_default() {
+        let _lock = ENV_LOCK.lock().unwrap();
+        env::set_var("BOOK_TELEGRAM_BOT_TOKEN", "123:ABC");
+        env::set_var("BOOK_TELEGRAM_CHAT_ID", "12345");
+        env::remove_var("BOOK_ALLOW_HTML_INJECTION");
+
+        let config = Config::from_env().unwrap();
+        assert!(config.allow_html_injection);
+
+        env::remove_var("BOOK_TELEGRAM_BOT_TOKEN");
+        env::remove_var("BOOK_TELEGRAM_CHAT_ID");
+    }
+
+    #[test]
+    fn test_allow_html_injection_false() {
+        let _lock = ENV_LOCK.lock().unwrap();
+        env::set_var("BOOK_TELEGRAM_BOT_TOKEN", "123:ABC");
+        env::set_var("BOOK_TELEGRAM_CHAT_ID", "12345");
+        env::set_var("BOOK_ALLOW_HTML_INJECTION", "false");
+
+        let config = Config::from_env().unwrap();
+        assert!(!config.allow_html_injection);
+
+        env::remove_var("BOOK_TELEGRAM_BOT_TOKEN");
+        env::remove_var("BOOK_TELEGRAM_CHAT_ID");
+        env::remove_var("BOOK_ALLOW_HTML_INJECTION");
     }
 }

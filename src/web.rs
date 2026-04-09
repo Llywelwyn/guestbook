@@ -68,7 +68,11 @@ async fn submit(
     // Validation
     let name = form.name.trim().to_string();
     let message = form.message.trim().to_string();
-    let website = form.website.trim().to_string();
+    let website = if state.config.enable_website_field {
+        form.website.trim().to_string()
+    } else {
+        String::new()
+    };
 
     if name.is_empty() || message.is_empty() {
         return Html("Name and message are required.".to_string());
@@ -137,6 +141,8 @@ mod tests {
             max_message_length: 1000,
             max_website_length: 100,
             open_registration: true,
+            enable_website_field: true,
+            allow_html_injection: true,
             template: None,
             separator: "---".into(),
             style: String::new(),
@@ -301,5 +307,30 @@ mod tests {
             .unwrap()
             .count();
         assert_eq!(count, 1);
+    }
+
+    #[tokio::test]
+    async fn test_website_field_disabled_ignores_website() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut config = test_config(dir.path());
+        config.enable_website_field = false;
+        let (app, _rx) = test_app(config);
+        let (_, body) = post_form(&app, "name=alice&message=hello&website=http://evil.com").await;
+        assert!(body.contains("pending approval"));
+        let entries_dir = dir.path().join("entries");
+        let files: Vec<_> = std::fs::read_dir(&entries_dir).unwrap().collect();
+        assert_eq!(files.len(), 1);
+        let content = std::fs::read_to_string(files[0].as_ref().unwrap().path()).unwrap();
+        assert!(content.contains("website = \"\""));
+    }
+
+    #[tokio::test]
+    async fn test_website_field_disabled_hides_form_field() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut config = test_config(dir.path());
+        config.enable_website_field = false;
+        let (app, _rx) = test_app(config);
+        let html = get_index(&app).await;
+        assert!(!html.contains("name=\"website\""));
     }
 }
