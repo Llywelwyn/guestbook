@@ -106,6 +106,8 @@ in
     };
 
     telegram = {
+      enable = mkEnableOption "Telegram moderation notifications";
+
       botTokenFile = mkOption {
         type = types.path;
         description = "Path to a file containing the Telegram bot token.";
@@ -222,7 +224,6 @@ in
           BOOK_DATA_DIR = cfg.dataDir;
           BOOK_SITE_TITLE = cfg.siteTitle;
 
-          BOOK_TELEGRAM_CHAT_ID = toString cfg.telegram.chatId;
           BOOK_ENABLE_HONEYPOT = if cfg.security.enableHoneypot then "true" else "false";
           BOOK_ENABLE_SUBMISSIONS = if cfg.security.enableSubmissions then "true" else "false";
           BOOK_ENABLE_HTML_INJECTION = if cfg.security.enableHtmlInjection then "true" else "false";
@@ -248,6 +249,8 @@ in
           BOOK_STYLE_FILE = cfg.styles.cssFile;
         } // lib.optionalAttrs (cfg.styles.templateFile != null) {
           BOOK_TEMPLATE = cfg.styles.templateFile;
+        } // lib.optionalAttrs cfg.telegram.enable {
+          BOOK_TELEGRAM_CHAT_ID = toString cfg.telegram.chatId;
         };
         serviceConfig = {
           Type = "simple";
@@ -261,7 +264,9 @@ in
           ReadWritePaths = [ cfg.dataDir ];
         };
         script = ''
-          export BOOK_TELEGRAM_BOT_TOKEN="$(< "${cfg.telegram.botTokenFile}")"
+          ${lib.optionalString cfg.telegram.enable ''
+            export BOOK_TELEGRAM_BOT_TOKEN="$(< "${cfg.telegram.botTokenFile}")"
+          ''}
           exec ${cfg.package}/bin/guestbook
         '';
       };

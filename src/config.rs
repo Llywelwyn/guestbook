@@ -7,8 +7,8 @@ pub struct Config {
     pub data_dir: PathBuf,
     pub site_title: String,
 
-    pub telegram_bot_token: String,
-    pub telegram_chat_id: i64,
+    pub telegram_bot_token: Option<String>,
+    pub telegram_chat_id: Option<i64>,
     pub enable_honeypot: bool,
     pub max_name_length: usize,
     pub max_message_length: usize,
@@ -49,12 +49,11 @@ impl Config {
                 .unwrap_or_else(|_| PathBuf::from("./data")),
             site_title: env::var("BOOK_SITE_TITLE").unwrap_or_else(|_| "guestbook".into()),
 
-            telegram_bot_token: env::var("BOOK_TELEGRAM_BOT_TOKEN")
-                .map_err(|_| "BOOK_TELEGRAM_BOT_TOKEN is required")?,
+            telegram_bot_token: env::var("BOOK_TELEGRAM_BOT_TOKEN").ok(),
             telegram_chat_id: env::var("BOOK_TELEGRAM_CHAT_ID")
-                .map_err(|_| "BOOK_TELEGRAM_CHAT_ID is required")?
-                .parse()
-                .map_err(|_| "BOOK_TELEGRAM_CHAT_ID must be an integer")?,
+                .ok()
+                .map(|v| v.parse().map_err(|_| "BOOK_TELEGRAM_CHAT_ID must be an integer"))
+                .transpose()?,
             enable_honeypot: env::var("BOOK_ENABLE_HONEYPOT")
                 .map(|v| v != "false")
                 .unwrap_or(true),
@@ -149,7 +148,8 @@ mod tests {
         assert_eq!(config.listen_addr(), "127.0.0.1:9999");
         assert_eq!(config.data_dir, PathBuf::from("/tmp/gb"));
         assert_eq!(config.site_title, "test.rs");
-        assert_eq!(config.telegram_chat_id, 12345);
+        assert_eq!(config.telegram_bot_token.as_deref(), Some("123:ABC"));
+        assert_eq!(config.telegram_chat_id, Some(12345));
 
         // Clean up
         env::remove_var("BOOK_PORT");
@@ -175,13 +175,14 @@ mod tests {
     }
 
     #[test]
-    fn test_missing_required() {
+    fn test_telegram_optional() {
         let _lock = ENV_LOCK.lock().unwrap();
         env::remove_var("BOOK_TELEGRAM_BOT_TOKEN");
         env::remove_var("BOOK_TELEGRAM_CHAT_ID");
 
-        let result = Config::from_env();
-        assert!(result.is_err());
+        let config = Config::from_env().unwrap();
+        assert!(config.telegram_bot_token.is_none());
+        assert!(config.telegram_chat_id.is_none());
     }
 
     #[test]

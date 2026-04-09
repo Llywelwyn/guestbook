@@ -118,8 +118,8 @@ mod tests {
             data_dir: PathBuf::from("./data"),
             site_title: "test".into(),
 
-            telegram_bot_token: "fake".into(),
-            telegram_chat_id: 0,
+            telegram_bot_token: None,
+            telegram_chat_id: None,
             enable_honeypot: true,
             max_name_length: 0,
             max_message_length: 0,
