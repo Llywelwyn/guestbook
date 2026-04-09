@@ -12,6 +12,7 @@ pub struct Config {
     pub honeypot: bool,
     pub max_name_length: usize,
     pub max_message_length: usize,
+    pub max_website_length: usize,
 }
 
 impl Config {
@@ -47,6 +48,10 @@ impl Config {
                 .unwrap_or_else(|_| "1000".into())
                 .parse()
                 .map_err(|_| "BOOK_MAX_MESSAGE_LENGTH must be a number")?,
+            max_website_length: env::var("BOOK_MAX_WEBSITE_LENGTH")
+                .unwrap_or_else(|_| "100".into())
+                .parse()
+                .map_err(|_| "BOOK_MAX_WEBSITE_LENGTH must be a number")?,
         })
     }
 }
@@ -54,9 +59,13 @@ impl Config {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::Mutex;
+
+    static ENV_LOCK: Mutex<()> = Mutex::new(());
 
     #[test]
     fn test_from_env() {
+        let _lock = ENV_LOCK.lock().unwrap();
         env::set_var("BOOK_PORT", "9999");
         env::set_var("BOOK_DATA_DIR", "/tmp/gb");
         env::set_var("BOOK_SITE_TITLE", "test.rs");
@@ -83,6 +92,7 @@ mod tests {
 
     #[test]
     fn test_defaults() {
+        let _lock = ENV_LOCK.lock().unwrap();
         env::set_var("BOOK_SITE_URL", "https://test.rs");
         env::set_var("BOOK_TELEGRAM_BOT_TOKEN", "123:ABC");
         env::set_var("BOOK_TELEGRAM_CHAT_ID", "12345");
@@ -99,6 +109,7 @@ mod tests {
 
     #[test]
     fn test_missing_required() {
+        let _lock = ENV_LOCK.lock().unwrap();
         env::remove_var("BOOK_SITE_URL");
         env::remove_var("BOOK_TELEGRAM_BOT_TOKEN");
         env::remove_var("BOOK_TELEGRAM_CHAT_ID");

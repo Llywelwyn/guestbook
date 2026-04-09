@@ -63,6 +63,12 @@ in
       description = "Maximum length for messages. 0 for unlimited.";
     };
 
+    maxWebsiteLength = mkOption {
+      type = types.int;
+      default = 100;
+      description = "Maximum length for website URLs. 0 for unlimited.";
+    };
+
     user = mkOption {
       type = types.str;
       default = "guestbook";
@@ -101,6 +107,7 @@ in
           BOOK_HONEYPOT = if cfg.honeypot then "true" else "false";
           BOOK_MAX_NAME_LENGTH = toString cfg.maxNameLength;
           BOOK_MAX_MESSAGE_LENGTH = toString cfg.maxMessageLength;
+          BOOK_MAX_WEBSITE_LENGTH = toString cfg.maxWebsiteLength;
         };
         serviceConfig = {
           Type = "simple";

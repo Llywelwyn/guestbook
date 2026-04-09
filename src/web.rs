@@ -69,8 +69,9 @@ async fn submit(
     if max_name > 0 && name.len() > max_name {
         return Html(format!("Name is too long (max {max_name} chars)."));
     }
-    if website.len() > 100 {
-        return Html("Website is too long (max 100 chars).".to_string());
+    let max_web = state.config.max_website_length;
+    if max_web > 0 && website.len() > max_web {
+        return Html(format!("Website is too long (max {max_web} chars)."));
     }
     let max_msg = state.config.max_message_length;
     if max_msg > 0 && message.len() > max_msg {
