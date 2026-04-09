@@ -1,0 +1,6 @@
+listen = "127.0.0.1:8123"
+data_dir = "./data"
+site_title = "ily.rs"
+site_url = "https://ily.rs"
+telegram_bot_token = "REPLACE_ME"
+telegram_chat_id = 0
