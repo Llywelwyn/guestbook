@@ -72,7 +72,14 @@ impl Config {
                 std::fs::read_to_string(&path)
                     .unwrap_or_else(|e| panic!("failed to read template {path}: {e}"))
             }),
-            style: env::var("BOOK_STYLE").unwrap_or_default(),
+            style: env::var("BOOK_STYLE_FILE")
+                .ok()
+                .map(|path| {
+                    std::fs::read_to_string(&path)
+                        .unwrap_or_else(|e| panic!("failed to read style file {path}: {e}"))
+                })
+                .or_else(|| env::var("BOOK_STYLE").ok())
+                .unwrap_or_default(),
             form_prompt: env::var("BOOK_FORM_PROMPT")
                 .unwrap_or_else(|_| "If you visited my site, please sign my guestbook!".into()),
             button_text: env::var("BOOK_BUTTON_TEXT")

@@ -87,6 +87,12 @@ in
       description = "Custom CSS injected into a style tag. Use class names: .guestbook-form, .guestbook-prompt, .guestbook-label, .guestbook-input, .guestbook-textarea, .guestbook-button, .entry-header, .entry-name, .entry-website, .entry-body, .entry-separator";
     };
 
+    styleFile = mkOption {
+      type = types.nullOr types.path;
+      default = null;
+      description = "Path to a CSS file. Takes precedence over style.";
+    };
+
     formPrompt = mkOption {
       type = types.str;
       default = "If you visited my site, please sign my guestbook!";
@@ -177,6 +183,8 @@ in
           BOOK_OPEN_REGISTRATION = if cfg.openRegistration then "true" else "false";
           BOOK_SEPARATOR = cfg.separator;
           BOOK_STYLE = cfg.style;
+        } // lib.optionalAttrs (cfg.styleFile != null) {
+          BOOK_STYLE_FILE = cfg.styleFile;
           BOOK_FORM_PROMPT = cfg.formPrompt;
           BOOK_BUTTON_TEXT = cfg.buttonText;
           BOOK_LABEL_NAME = cfg.labelName;
