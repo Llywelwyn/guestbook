@@ -21,6 +21,10 @@ pub struct Config {
     pub captcha_answer: String,
     pub captcha_exact: bool,
     pub captcha_casesensitive: bool,
+    pub enable_drawings: bool,
+    pub label_drawing: String,
+    pub canvas_width: u32,
+    pub canvas_height: u32,
     pub template: Option<String>,
     pub separator: String,
     pub style: String,
@@ -36,6 +40,12 @@ pub struct Config {
 impl Config {
     pub fn listen_addr(&self) -> String {
         format!("127.0.0.1:{}", self.port)
+    }
+
+    /// Maximum drawing file size: width * height * 4 (raw RGBA).
+    /// Any valid PNG from the configured canvas will be smaller than this.
+    pub fn max_drawing_bytes(&self) -> usize {
+        self.canvas_width as usize * self.canvas_height as usize * 4
     }
 
     pub fn from_env() -> Result<Self, String> {
@@ -91,6 +101,19 @@ impl Config {
             captcha_casesensitive: env::var("BOOK_CAPTCHA_CASESENSITIVE")
                 .map(|v| v != "false")
                 .unwrap_or(false),
+            enable_drawings: env::var("BOOK_ENABLE_DRAWINGS")
+                .map(|v| v != "false")
+                .unwrap_or(false),
+            label_drawing: env::var("BOOK_LABEL_DRAWING")
+                .unwrap_or_else(|_| "Draw (optional):".into()),
+            canvas_width: env::var("BOOK_CANVAS_WIDTH")
+                .unwrap_or_else(|_| "400".into())
+                .parse()
+                .map_err(|_| "BOOK_CANVAS_WIDTH must be a number")?,
+            canvas_height: env::var("BOOK_CANVAS_HEIGHT")
+                .unwrap_or_else(|_| "200".into())
+                .parse()
+                .map_err(|_| "BOOK_CANVAS_HEIGHT must be a number")?,
             separator: env::var("BOOK_SEPARATOR")
                 .unwrap_or_else(|_| "------------------------------------------------------------".into()),
             template: env::var("BOOK_TEMPLATE").ok().map(|path| {
@@ -241,5 +264,20 @@ mod tests {
         env::remove_var("BOOK_TELEGRAM_BOT_TOKEN");
         env::remove_var("BOOK_TELEGRAM_CHAT_ID");
         env::remove_var("BOOK_ENABLE_HTML_INJECTION");
+    }
+
+    #[test]
+    fn test_enable_drawings_default() {
+        let _lock = ENV_LOCK.lock().unwrap();
+        env::remove_var("BOOK_ENABLE_DRAWINGS");
+        env::remove_var("BOOK_TELEGRAM_BOT_TOKEN");
+        env::remove_var("BOOK_TELEGRAM_CHAT_ID");
+
+        let config = Config::from_env().unwrap();
+        assert!(!config.enable_drawings);
+        assert_eq!(config.canvas_width, 400);
+        assert_eq!(config.canvas_height, 200);
+        assert_eq!(config.max_drawing_bytes(), 400 * 200 * 4);
+        assert_eq!(config.label_drawing, "Draw (optional):");
     }
 }

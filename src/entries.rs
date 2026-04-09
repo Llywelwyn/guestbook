@@ -15,6 +15,8 @@ pub struct EntryMeta {
     pub date: String,
     #[serde(default)]
     pub website: String,
+    #[serde(default)]
+    pub drawing: String,
     pub status: Status,
 }
 
@@ -182,5 +184,45 @@ Hello world!"#;
     fn test_parse_missing_frontmatter() {
         let result = Entry::parse("x", "no frontmatter here");
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_parse_entry_with_drawing() {
+        let contents = r#"+++
+name = "alice"
+date = "2026-04-09"
+status = "approved"
+drawing = "abc123.png"
++++
+Hello!"#;
+        let entry = Entry::parse("test", contents).unwrap();
+        assert_eq!(entry.meta.drawing, "abc123.png");
+    }
+
+    #[test]
+    fn test_parse_entry_without_drawing() {
+        let contents = r#"+++
+name = "bob"
+date = "2026-04-09"
+status = "pending"
++++
+Hi!"#;
+        let entry = Entry::parse("test", contents).unwrap();
+        assert_eq!(entry.meta.drawing, "");
+    }
+
+    #[test]
+    fn test_roundtrip_with_drawing() {
+        let contents = r#"+++
+name = "alice"
+date = "2026-04-09"
+status = "approved"
+drawing = "abc123.png"
++++
+Hello!"#;
+        let entry = Entry::parse("test", contents).unwrap();
+        let serialized = entry.to_file_contents();
+        let reparsed = Entry::parse("test", &serialized).unwrap();
+        assert_eq!(reparsed.meta.drawing, "abc123.png");
     }
 }

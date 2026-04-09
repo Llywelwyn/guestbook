@@ -1,9 +1,13 @@
 use axum::{
+    extract::DefaultBodyLimit,
+    extract::Path as AxumPath,
     extract::State,
-    response::Html,
+    http::{header, StatusCode},
+    response::{Html, IntoResponse, Response},
     routing::{get, post},
     Form, Router,
 };
+use base64::Engine;
 use serde::Deserialize;
 use std::sync::Arc;
 use uuid::Uuid;
@@ -27,12 +31,16 @@ pub struct SubmitForm {
     url: String, // honeypot
     #[serde(default)]
     captcha: String,
+    #[serde(default)]
+    drawing: String,
 }
 
 pub fn router(state: Arc<AppState>) -> Router {
     Router::new()
         .route("/", get(index))
         .route("/submit", post(submit))
+        .route("/drawings/{filename}", get(serve_drawing))
+        .layer(DefaultBodyLimit::max(2 * 1024 * 1024))
         .with_state(state)
 }
 
@@ -52,6 +60,34 @@ async fn index(State(state): State<Arc<AppState>>) -> Html<String> {
         &form,
     );
     Html(html)
+}
+
+async fn serve_drawing(
+    State(state): State<Arc<AppState>>,
+    AxumPath(filename): AxumPath<String>,
+) -> Response {
+    // Validate filename: only safe chars + .png
+    if !filename.ends_with(".png")
+        || !filename[..filename.len() - 4]
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
+    {
+        return StatusCode::NOT_FOUND.into_response();
+    }
+
+    let path = state.config.data_dir.join("drawings").join(&filename);
+    match std::fs::read(&path) {
+        Ok(bytes) => (
+            StatusCode::OK,
+            [
+                (header::CONTENT_TYPE, "image/png"),
+                (header::X_CONTENT_TYPE_OPTIONS, "nosniff"),
+            ],
+            bytes,
+        )
+            .into_response(),
+        Err(_) => StatusCode::NOT_FOUND.into_response(),
+    }
 }
 
 async fn submit(
@@ -116,6 +152,49 @@ async fn submit(
         return Html(format!("Message is too long (max {max_msg} chars)."));
     }
 
+    // Process drawing if enabled and provided
+    let (drawing_filename, drawing_bytes) = if state.config.enable_drawings && !form.drawing.is_empty() {
+        let b64 = form.drawing
+            .strip_prefix("data:image/png;base64,")
+            .unwrap_or("");
+        if b64.is_empty() {
+            (String::new(), None)
+        } else {
+            let bytes = match base64::engine::general_purpose::STANDARD.decode(b64) {
+                Ok(b) => b,
+                Err(_) => return Html("Invalid drawing data.".to_string()),
+            };
+            let max = state.config.max_drawing_bytes();
+            if max > 0 && bytes.len() > max {
+                return Html(format!("Drawing is too large (max {} bytes).", max));
+            }
+
+            // Validate PNG: magic bytes + IHDR dimensions match configured canvas
+            if bytes.len() < 24 || &bytes[..8] != b"\x89PNG\r\n\x1a\n" {
+                return Html("Invalid drawing format.".to_string());
+            }
+            let width = u32::from_be_bytes([bytes[16], bytes[17], bytes[18], bytes[19]]);
+            let height = u32::from_be_bytes([bytes[20], bytes[21], bytes[22], bytes[23]]);
+            if width != state.config.canvas_width || height != state.config.canvas_height {
+                return Html("Invalid drawing dimensions.".to_string());
+            }
+
+            let drawing_id = &Uuid::new_v4().to_string()[..8];
+            let date_now = chrono::Utc::now().format("%Y-%m-%d").to_string();
+            let drawing_name = format!("{date_now}-{drawing_id}.png");
+            let drawings_dir = state.config.data_dir.join("drawings");
+            std::fs::create_dir_all(&drawings_dir).ok();
+            if let Err(e) = std::fs::write(drawings_dir.join(&drawing_name), &bytes) {
+                tracing::error!("failed to write drawing: {e}");
+                return Html("Something went wrong. Please try again.".to_string());
+            }
+            (drawing_name, Some(bytes))
+        }
+    } else {
+        (String::new(), None)
+    };
+    let _ = drawing_bytes;
+
     let short_id = &Uuid::new_v4().to_string()[..8];
     let date = chrono::Utc::now().format("%Y-%m-%dT%H:%M:%S").to_string();
     let date_short = &date[..10];
@@ -127,6 +206,7 @@ async fn submit(
             name,
             date,
             website,
+            drawing: drawing_filename,
             status: Status::Pending,
         },
         body: message,
@@ -152,6 +232,7 @@ mod tests {
     use super::*;
     use axum::body::Body;
     use axum::http::{Request, StatusCode};
+    use base64::Engine;
     use http_body_util::BodyExt;
     use tower::ServiceExt;
 
@@ -175,6 +256,10 @@ mod tests {
             captcha_answer: String::new(),
             captcha_exact: false,
             captcha_casesensitive: false,
+            enable_drawings: false,
+            label_drawing: "Draw (optional):".into(),
+            canvas_width: 400,
+            canvas_height: 200,
             template: None,
             separator: "---".into(),
             style: String::new(),
@@ -462,5 +547,194 @@ mod tests {
         let html = get_index(&app).await;
         assert!(html.contains("What is 2+2?"));
         assert!(html.contains("name=\"captcha\""));
+    }
+
+    async fn get_path(app: &Router, path: &str) -> (StatusCode, Vec<u8>) {
+        let req = Request::builder()
+            .uri(path)
+            .body(Body::empty())
+            .unwrap();
+        let resp = app.clone().oneshot(req).await.unwrap();
+        let status = resp.status();
+        let bytes = resp.into_body().collect().await.unwrap().to_bytes().to_vec();
+        (status, bytes)
+    }
+
+    #[tokio::test]
+    async fn test_serve_drawing() {
+        let dir = tempfile::tempdir().unwrap();
+        let config = test_config(dir.path());
+        let (app, _rx) = test_app(config);
+
+        let drawings_dir = dir.path().join("drawings");
+        std::fs::create_dir_all(&drawings_dir).unwrap();
+        let png_bytes = b"\x89PNG\r\n\x1a\nfake";
+        std::fs::write(drawings_dir.join("test123.png"), png_bytes).unwrap();
+
+        let (status, body) = get_path(&app, "/drawings/test123.png").await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(body, png_bytes);
+    }
+
+    #[tokio::test]
+    async fn test_serve_drawing_not_found() {
+        let dir = tempfile::tempdir().unwrap();
+        let config = test_config(dir.path());
+        let (app, _rx) = test_app(config);
+
+        let (status, _) = get_path(&app, "/drawings/nonexistent.png").await;
+        assert_eq!(status, StatusCode::NOT_FOUND);
+    }
+
+    #[tokio::test]
+    async fn test_serve_drawing_rejects_path_traversal() {
+        let dir = tempfile::tempdir().unwrap();
+        let config = test_config(dir.path());
+        let (app, _rx) = test_app(config);
+
+        let (status, _) = get_path(&app, "/drawings/../entries/secret.txt").await;
+        assert_eq!(status, StatusCode::NOT_FOUND);
+    }
+
+    /// Build a fake but valid PNG with the given dimensions.
+    fn fake_png(width: u32, height: u32) -> Vec<u8> {
+        let mut png = vec![0x89, b'P', b'N', b'G', 0x0d, 0x0a, 0x1a, 0x0a];
+        png.extend_from_slice(&13u32.to_be_bytes());
+        png.extend_from_slice(b"IHDR");
+        png.extend_from_slice(&width.to_be_bytes());
+        png.extend_from_slice(&height.to_be_bytes());
+        png.extend_from_slice(&[8, 6, 0, 0, 0]);
+        png.extend_from_slice(&[0, 0, 0, 0]);
+        png
+    }
+
+    #[tokio::test]
+    async fn test_submit_with_drawing() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut config = test_config(dir.path());
+        config.enable_drawings = true;
+        config.canvas_width = 400;
+        config.canvas_height = 200;
+        let (app, _rx) = test_app(config);
+
+        let png = fake_png(400, 200);
+        let drawing_data = base64::engine::general_purpose::STANDARD.encode(&png);
+        let data_url = format!("data:image/png;base64,{drawing_data}");
+        let body = format!(
+            "name=alice&message=hello&drawing={}",
+            urlencoding::encode(&data_url)
+        );
+        let (_, resp) = post_form(&app, &body).await;
+        assert!(resp.contains("pending approval"));
+
+        let entries: Vec<_> = std::fs::read_dir(dir.path().join("entries"))
+            .unwrap()
+            .collect();
+        assert_eq!(entries.len(), 1);
+        let content = std::fs::read_to_string(entries[0].as_ref().unwrap().path()).unwrap();
+        assert!(content.contains("drawing = "));
+
+        let drawings: Vec<_> = std::fs::read_dir(dir.path().join("drawings"))
+            .unwrap()
+            .collect();
+        assert_eq!(drawings.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn test_submit_without_drawing() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut config = test_config(dir.path());
+        config.enable_drawings = true;
+        let (app, _rx) = test_app(config);
+        let (_, resp) = post_form(&app, "name=alice&message=hello").await;
+        assert!(resp.contains("pending approval"));
+
+        let drawings_dir = dir.path().join("drawings");
+        if drawings_dir.exists() {
+            let count = std::fs::read_dir(&drawings_dir).unwrap().count();
+            assert_eq!(count, 0);
+        }
+    }
+
+    #[tokio::test]
+    async fn test_submit_drawing_too_large() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut config = test_config(dir.path());
+        config.enable_drawings = true;
+        config.canvas_width = 1;
+        config.canvas_height = 1;
+        let (app, _rx) = test_app(config);
+
+        // PNG with dimensions 1x1 — max_drawing_bytes() is 4, but the fake_png itself is 33 bytes
+        let png = fake_png(1, 1);
+        let drawing_data = base64::engine::general_purpose::STANDARD.encode(&png);
+        let data_url = format!("data:image/png;base64,{drawing_data}");
+        let body = format!(
+            "name=alice&message=hello&drawing={}",
+            urlencoding::encode(&data_url)
+        );
+        let (_, resp) = post_form(&app, &body).await;
+        assert!(resp.contains("too large"));
+    }
+
+    #[tokio::test]
+    async fn test_submit_drawing_rejects_non_png() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut config = test_config(dir.path());
+        config.enable_drawings = true;
+        let (app, _rx) = test_app(config);
+
+        let drawing_data = base64::engine::general_purpose::STANDARD.encode(b"not a png file at all");
+        let data_url = format!("data:image/png;base64,{drawing_data}");
+        let body = format!(
+            "name=alice&message=hello&drawing={}",
+            urlencoding::encode(&data_url)
+        );
+        let (_, resp) = post_form(&app, &body).await;
+        assert!(resp.contains("Invalid drawing"));
+    }
+
+    #[tokio::test]
+    async fn test_submit_drawing_rejects_wrong_dimensions() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut config = test_config(dir.path());
+        config.enable_drawings = true;
+        config.canvas_width = 400;
+        config.canvas_height = 200;
+        let (app, _rx) = test_app(config);
+
+        let png = fake_png(1920, 1080);
+        let drawing_data = base64::engine::general_purpose::STANDARD.encode(&png);
+        let data_url = format!("data:image/png;base64,{drawing_data}");
+        let body = format!(
+            "name=alice&message=hello&drawing={}",
+            urlencoding::encode(&data_url)
+        );
+        let (_, resp) = post_form(&app, &body).await;
+        assert!(resp.contains("Invalid drawing dimensions"));
+    }
+
+    #[tokio::test]
+    async fn test_submit_drawing_ignored_when_disabled() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut config = test_config(dir.path());
+        config.enable_drawings = false;
+        let (app, _rx) = test_app(config);
+
+        let png = fake_png(400, 200);
+        let drawing_data = base64::engine::general_purpose::STANDARD.encode(&png);
+        let data_url = format!("data:image/png;base64,{drawing_data}");
+        let body = format!(
+            "name=alice&message=hello&drawing={}",
+            urlencoding::encode(&data_url)
+        );
+        let (_, resp) = post_form(&app, &body).await;
+        assert!(resp.contains("pending approval"));
+
+        let entries: Vec<_> = std::fs::read_dir(dir.path().join("entries"))
+            .unwrap()
+            .collect();
+        let content = std::fs::read_to_string(entries[0].as_ref().unwrap().path()).unwrap();
+        assert!(!content.contains("drawing = \"2026"));
     }
 }
