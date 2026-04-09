@@ -49,6 +49,12 @@ in
         type = types.str;
         description = "Domain for the Caddy virtual host.";
       };
+
+      forwardAuth = mkOption {
+        type = types.nullOr types.str;
+        default = null;
+        description = "URL for forward_auth (e.g. localhost:9090). When set, all requests are authenticated via forward_auth before proxying.";
+      };
     };
 
     security = {
@@ -282,6 +288,11 @@ in
 
     (mkIf cfg.caddy.enable {
       services.caddy.virtualHosts.${cfg.caddy.domain}.extraConfig = ''
+        ${lib.optionalString (cfg.caddy.forwardAuth != null) ''
+        forward_auth ${cfg.caddy.forwardAuth} {
+            uri /api/auth
+        }
+        ''}
         reverse_proxy localhost:${toString cfg.port}
         encode zstd gzip
       '';
