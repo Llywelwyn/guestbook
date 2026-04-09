@@ -742,4 +742,46 @@ mod tests {
         let content = std::fs::read_to_string(entries[0].as_ref().unwrap().path()).unwrap();
         assert!(content.contains("drawing = \"\""));
     }
+
+    #[tokio::test]
+    async fn test_drawing_full_roundtrip() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut config = test_config(dir.path());
+        config.enable_drawings = true;
+        config.canvas_width = 400;
+        config.canvas_height = 200;
+        let (app, _rx) = test_app(config);
+
+        // Submit with a drawing
+        let png = fake_png(400, 200);
+        let drawing_data = base64::engine::general_purpose::STANDARD.encode(&png);
+        let data_url = format!("data:image/png;base64,{drawing_data}");
+        let body = format!(
+            "name=alice&message=hello&drawing={}",
+            urlencoding::encode(&data_url)
+        );
+        post_form(&app, &body).await;
+
+        // Approve the entry
+        let entries_dir = dir.path().join("entries");
+        let entry_file = std::fs::read_dir(&entries_dir).unwrap().next().unwrap().unwrap();
+        let content = std::fs::read_to_string(entry_file.path()).unwrap();
+        let id = entry_file.path().file_stem().unwrap().to_str().unwrap().to_string();
+        let mut entry = entries::Entry::parse(&id, &content).unwrap();
+        entry.meta.status = entries::Status::Approved;
+        std::fs::write(entry_file.path(), entry.to_file_contents()).unwrap();
+
+        let drawing_filename = entry.meta.drawing.clone();
+        assert!(!drawing_filename.is_empty(), "entry should have a drawing filename");
+
+        // Verify index shows the drawing
+        let html = get_index(&app).await;
+        assert!(html.contains("entry-drawing"));
+        assert!(html.contains(&format!("/drawings/{drawing_filename}")));
+
+        // Verify the drawing file is served
+        let (status, bytes) = get_path(&app, &format!("/drawings/{drawing_filename}")).await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(bytes, png);
+    }
 }

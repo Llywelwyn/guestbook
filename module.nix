@@ -179,7 +179,7 @@ in
       css = mkOption {
         type = types.str;
         default = "";
-        description = "Custom CSS injected into a style tag. Use class names: .guestbook-form, .guestbook-prompt, .guestbook-label, .guestbook-input, .guestbook-textarea, .guestbook-button, .guestbook-canvas, .entry-header, .entry-name, .entry-website, .entry-body, .entry-drawing, .entry-separator";
+        description = "Custom CSS injected into a style tag. Use class names: .guestbook-form, .guestbook-prompt, .guestbook-label, .guestbook-input, .guestbook-textarea, .guestbook-button, .guestbook-canvas, .entry-header, .entry-date, .entry-name, .entry-website, .entry-body, .entry-drawing, .entry-separator";
       };
 
       cssFile = mkOption {

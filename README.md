@@ -148,7 +148,7 @@ Running `guestbook` with no env vars will give you a working guestbook on `local
 
 # Custom CSS injected into a style tag.
 # Classes: .guestbook-form, .guestbook-prompt, .guestbook-label, .guestbook-input,
-#          .guestbook-textarea, .guestbook-button, .entry-header, .entry-name,
+#          .guestbook-textarea, .guestbook-button, .entry-header, .entry-date, .entry-name,
 #          .entry-website, .entry-body, .entry-separator
 # BOOK_STYLE=
 
@@ -360,6 +360,7 @@ entries
 
 /* Entries */
 .entry-header {}
+.entry-date {}
 .entry-name {}
 .entry-website {}
 .entry-body {}

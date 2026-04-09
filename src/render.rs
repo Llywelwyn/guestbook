@@ -127,7 +127,7 @@ fn render_entry(entry: &Entry, config: &Config) -> String {
         escape_html(&entry.meta.name)
     };
     let mut header = format!(
-        "<span class=\"entry-header\">{} - <span class=\"entry-name\">{}</span>",
+        "<span class=\"entry-header\"><span class=\"entry-date\">{}</span> - <span class=\"entry-name\">{}</span>",
         &entry.meta.date[..10], name
     );
     if config.enable_website_links && !entry.meta.website.is_empty() {
@@ -152,7 +152,7 @@ fn render_entry(entry: &Entry, config: &Config) -> String {
         String::new()
     };
     format!(
-        "\n{header}\n\n<span class=\"entry-body\">{body}</span>{drawing_html}\n\n<span class=\"entry-separator\">{}</span>\n",
+        "\n{header}\n{drawing_html}\n<span class=\"entry-body\">{body}</span>\n\n<span class=\"entry-separator\">{}</span>\n",
         config.separator
     )
 }
