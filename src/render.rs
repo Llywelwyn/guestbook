@@ -85,7 +85,7 @@ fn render_entry(entry: &Entry, config: &Config) -> String {
     };
     let mut header = format!(
         "<span class=\"entry-header\">{} - <span class=\"entry-name\">{}</span>",
-        entry.meta.date, name
+        &entry.meta.date[..10], name
     );
     if config.enable_website_links && !entry.meta.website.is_empty() {
         let website = escape_html(&entry.meta.website);

@@ -117,8 +117,9 @@ async fn submit(
     }
 
     let short_id = &Uuid::new_v4().to_string()[..8];
-    let date = chrono::Utc::now().format("%Y-%m-%d").to_string();
-    let filename = format!("{date}-{short_id}.txt");
+    let date = chrono::Utc::now().format("%Y-%m-%dT%H:%M:%S").to_string();
+    let date_short = &date[..10];
+    let filename = format!("{date_short}-{short_id}.txt");
 
     let entry = Entry {
         id: filename.trim_end_matches(".txt").to_string(),
