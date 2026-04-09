@@ -60,7 +60,7 @@ in
 
       enableHtmlInjection = mkOption {
         type = types.bool;
-        default = true;
+        default = false;
         description = "Allow raw HTML/JS in entry names and message bodies. When false, HTML is escaped. Website URLs are always escaped.";
       };
 
@@ -74,6 +74,34 @@ in
         type = types.bool;
         default = true;
         description = "Enable honeypot field for spam prevention.";
+      };
+
+      captcha = {
+        enable = mkEnableOption "captcha on submission form";
+
+        question = mkOption {
+          type = types.str;
+          default = "";
+          description = "Captcha question displayed as a label.";
+        };
+
+        answer = mkOption {
+          type = types.str;
+          default = "";
+          description = "Captcha answer to validate against.";
+        };
+
+        exact = mkOption {
+          type = types.bool;
+          default = false;
+          description = "Require exact match. When false, the answer just needs to be contained in the response.";
+        };
+
+        caseSensitive = mkOption {
+          type = types.bool;
+          default = false;
+          description = "Require case-sensitive match.";
+        };
       };
     };
 
@@ -92,19 +120,19 @@ in
     limits = {
       name = mkOption {
         type = types.int;
-        default = 50;
+        default = 0;
         description = "Maximum length for names. 0 for unlimited.";
       };
 
       message = mkOption {
         type = types.int;
-        default = 1000;
+        default = 0;
         description = "Maximum length for messages. 0 for unlimited.";
       };
 
       website = mkOption {
         type = types.int;
-        default = 100;
+        default = 0;
         description = "Maximum length for website URLs. 0 for unlimited.";
       };
     };
@@ -136,7 +164,7 @@ in
 
       greeting = mkOption {
         type = types.str;
-        default = "If you visited my site, please sign my guestbook!";
+        default = "Thanks for visiting. Sign the guestbook!";
         description = "Text shown above the form.";
       };
 
@@ -199,6 +227,11 @@ in
           BOOK_ENABLE_SUBMISSIONS = if cfg.security.enableSubmissions then "true" else "false";
           BOOK_ENABLE_HTML_INJECTION = if cfg.security.enableHtmlInjection then "true" else "false";
           BOOK_ENABLE_WEBSITE_LINKS = if cfg.security.enableWebsiteLinks then "true" else "false";
+          BOOK_ENABLE_CAPTCHA = if cfg.security.captcha.enable then "true" else "false";
+          BOOK_CAPTCHA_QUESTION = cfg.security.captcha.question;
+          BOOK_CAPTCHA_ANSWER = cfg.security.captcha.answer;
+          BOOK_CAPTCHA_EXACT = if cfg.security.captcha.exact then "true" else "false";
+          BOOK_CAPTCHA_CASESENSITIVE = if cfg.security.captcha.caseSensitive then "true" else "false";
           BOOK_MAX_NAME_LENGTH = toString cfg.limits.name;
           BOOK_MAX_MESSAGE_LENGTH = toString cfg.limits.message;
           BOOK_MAX_WEBSITE_LENGTH = toString cfg.limits.website;

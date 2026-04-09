@@ -16,6 +16,11 @@ pub struct Config {
     pub enable_submissions: bool,
     pub enable_website_links: bool,
     pub enable_html_injection: bool,
+    pub enable_captcha: bool,
+    pub captcha_question: String,
+    pub captcha_answer: String,
+    pub captcha_exact: bool,
+    pub captcha_casesensitive: bool,
     pub template: Option<String>,
     pub separator: String,
     pub style: String,
@@ -54,15 +59,15 @@ impl Config {
                 .map(|v| v != "false")
                 .unwrap_or(true),
             max_name_length: env::var("BOOK_MAX_NAME_LENGTH")
-                .unwrap_or_else(|_| "50".into())
+                .unwrap_or_else(|_| "0".into())
                 .parse()
                 .map_err(|_| "BOOK_MAX_NAME_LENGTH must be a number")?,
             max_message_length: env::var("BOOK_MAX_MESSAGE_LENGTH")
-                .unwrap_or_else(|_| "1000".into())
+                .unwrap_or_else(|_| "0".into())
                 .parse()
                 .map_err(|_| "BOOK_MAX_MESSAGE_LENGTH must be a number")?,
             max_website_length: env::var("BOOK_MAX_WEBSITE_LENGTH")
-                .unwrap_or_else(|_| "100".into())
+                .unwrap_or_else(|_| "0".into())
                 .parse()
                 .map_err(|_| "BOOK_MAX_WEBSITE_LENGTH must be a number")?,
             enable_submissions: env::var("BOOK_ENABLE_SUBMISSIONS")
@@ -73,7 +78,20 @@ impl Config {
                 .unwrap_or(true),
             enable_html_injection: env::var("BOOK_ENABLE_HTML_INJECTION")
                 .map(|v| v != "false")
-                .unwrap_or(true),
+                .unwrap_or(false),
+            enable_captcha: env::var("BOOK_ENABLE_CAPTCHA")
+                .map(|v| v != "false")
+                .unwrap_or(false),
+            captcha_question: env::var("BOOK_CAPTCHA_QUESTION")
+                .unwrap_or_default(),
+            captcha_answer: env::var("BOOK_CAPTCHA_ANSWER")
+                .unwrap_or_default(),
+            captcha_exact: env::var("BOOK_CAPTCHA_EXACT")
+                .map(|v| v != "false")
+                .unwrap_or(false),
+            captcha_casesensitive: env::var("BOOK_CAPTCHA_CASESENSITIVE")
+                .map(|v| v != "false")
+                .unwrap_or(false),
             separator: env::var("BOOK_SEPARATOR")
                 .unwrap_or_else(|_| "------------------------------------------------------------".into()),
             template: env::var("BOOK_TEMPLATE").ok().map(|path| {
@@ -89,7 +107,7 @@ impl Config {
                 .or_else(|| env::var("BOOK_STYLE").ok())
                 .unwrap_or_default(),
             form_prompt: env::var("BOOK_FORM_PROMPT")
-                .unwrap_or_else(|_| "If you visited my site, please sign my guestbook!".into()),
+                .unwrap_or_else(|_| "Thanks for visiting. Sign the guestbook!".into()),
             button_text: env::var("BOOK_BUTTON_TEXT")
                 .unwrap_or_else(|_| "sign".into()),
             label_name: env::var("BOOK_LABEL_NAME")
@@ -203,21 +221,21 @@ mod tests {
         env::remove_var("BOOK_ENABLE_HTML_INJECTION");
 
         let config = Config::from_env().unwrap();
-        assert!(config.enable_html_injection);
+        assert!(!config.enable_html_injection);
 
         env::remove_var("BOOK_TELEGRAM_BOT_TOKEN");
         env::remove_var("BOOK_TELEGRAM_CHAT_ID");
     }
 
     #[test]
-    fn test_enable_html_injection_false() {
+    fn test_enable_html_injection_true() {
         let _lock = ENV_LOCK.lock().unwrap();
         env::set_var("BOOK_TELEGRAM_BOT_TOKEN", "123:ABC");
         env::set_var("BOOK_TELEGRAM_CHAT_ID", "12345");
-        env::set_var("BOOK_ENABLE_HTML_INJECTION", "false");
+        env::set_var("BOOK_ENABLE_HTML_INJECTION", "true");
 
         let config = Config::from_env().unwrap();
-        assert!(!config.enable_html_injection);
+        assert!(config.enable_html_injection);
 
         env::remove_var("BOOK_TELEGRAM_BOT_TOKEN");
         env::remove_var("BOOK_TELEGRAM_CHAT_ID");

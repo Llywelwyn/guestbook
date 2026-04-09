@@ -29,6 +29,15 @@ pub fn render_form(config: &Config) -> String {
         String::new()
     };
 
+    let captcha_section = if config.enable_captcha {
+        format!(
+            "\n<label class=\"guestbook-label\">{}</label>\n<input class=\"guestbook-input\" name=\"captcha\" required>\n",
+            config.captcha_question
+        )
+    } else {
+        String::new()
+    };
+
     format!(
         r#"<span class="guestbook-prompt">{prompt}</span>
 <form class="guestbook-form" method="post" action="/submit" accept-charset="UTF-8">
@@ -37,6 +46,7 @@ pub fn render_form(config: &Config) -> String {
 {website_section}
 <label class="guestbook-label">{label_message}</label>
 <textarea class="guestbook-textarea" name="message" rows="{rows}" cols="{cols}" required></textarea>
+{captcha_section}
 <input name="url" style="display:none" tabindex="-1" autocomplete="off">
 <button class="guestbook-button" type="submit">{button}</button>
 </form>"#,
@@ -46,6 +56,7 @@ pub fn render_form(config: &Config) -> String {
         label_message = config.label_message,
         rows = config.textarea_rows,
         cols = config.textarea_cols,
+        captcha_section = captcha_section,
         button = config.button_text,
     )
 }
@@ -110,16 +121,21 @@ mod tests {
             telegram_bot_token: "fake".into(),
             telegram_chat_id: 0,
             enable_honeypot: true,
-            max_name_length: 50,
-            max_message_length: 1000,
-            max_website_length: 100,
+            max_name_length: 0,
+            max_message_length: 0,
+            max_website_length: 0,
             enable_submissions: true,
             enable_website_links: true,
-            enable_html_injection: true,
+            enable_html_injection: false,
+            enable_captcha: false,
+            captcha_question: String::new(),
+            captcha_answer: String::new(),
+            captcha_exact: false,
+            captcha_casesensitive: false,
             template: None,
             separator: "---".into(),
             style: String::new(),
-            form_prompt: "Sign my guestbook!".into(),
+            form_prompt: "Thanks for visiting. Sign the guestbook!".into(),
             button_text: "sign".into(),
             label_name: "Your name:".into(),
             label_website: "Your website (optional):".into(),
@@ -186,7 +202,8 @@ mod tests {
 
     #[test]
     fn test_render_preserves_html_in_body() {
-        let config = test_config();
+        let mut config = test_config();
+        config.enable_html_injection = true;
         let entry = make_entry("carol", "2026-04-09", "<b>Bold</b>");
         let form = render_form(&config);
         let html = render_page(DEFAULT_TEMPLATE, &config, &[entry], &form);

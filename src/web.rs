@@ -25,6 +25,8 @@ pub struct SubmitForm {
     message: String,
     #[serde(default)]
     url: String, // honeypot
+    #[serde(default)]
+    captcha: String,
 }
 
 pub fn router(state: Arc<AppState>) -> Router {
@@ -73,6 +75,30 @@ async fn submit(
     } else {
         String::new()
     };
+
+    // Captcha check
+    if state.config.enable_captcha {
+        let input = form.captcha.trim();
+        let answer = &state.config.captcha_answer;
+        let ok = if state.config.captcha_casesensitive {
+            if state.config.captcha_exact {
+                input == answer
+            } else {
+                input.contains(answer.as_str())
+            }
+        } else {
+            let input_lower = input.to_lowercase();
+            let answer_lower = answer.to_lowercase();
+            if state.config.captcha_exact {
+                input_lower == answer_lower
+            } else {
+                input_lower.contains(&answer_lower)
+            }
+        };
+        if !ok {
+            return Html("Wrong answer.".to_string());
+        }
+    }
 
     if name.is_empty() || message.is_empty() {
         return Html("Name and message are required.".to_string());
@@ -137,16 +163,21 @@ mod tests {
             telegram_bot_token: "fake".into(),
             telegram_chat_id: 0,
             enable_honeypot: true,
-            max_name_length: 50,
-            max_message_length: 1000,
-            max_website_length: 100,
+            max_name_length: 0,
+            max_message_length: 0,
+            max_website_length: 0,
             enable_submissions: true,
             enable_website_links: true,
-            enable_html_injection: true,
+            enable_html_injection: false,
+            enable_captcha: false,
+            captcha_question: String::new(),
+            captcha_answer: String::new(),
+            captcha_exact: false,
+            captcha_casesensitive: false,
             template: None,
             separator: "---".into(),
             style: String::new(),
-            form_prompt: "Sign my guestbook!".into(),
+            form_prompt: "Thanks for visiting. Sign the guestbook!".into(),
             button_text: "sign".into(),
             label_name: "Your name:".into(),
             label_website: "Your website (optional):".into(),
@@ -332,5 +363,103 @@ mod tests {
         let (app, _rx) = test_app(config);
         let html = get_index(&app).await;
         assert!(!html.contains("name=\"website\""));
+    }
+
+    #[tokio::test]
+    async fn test_captcha_rejects_wrong_answer() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut config = test_config(dir.path());
+        config.enable_captcha = true;
+        config.captcha_question = "What is my name?".into();
+        config.captcha_answer = "lew".into();
+        let (app, _rx) = test_app(config);
+        let (_, body) = post_form(&app, "name=alice&message=hello&captcha=wrong").await;
+        assert!(body.contains("Wrong answer"));
+    }
+
+    #[tokio::test]
+    async fn test_captcha_accepts_correct_answer() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut config = test_config(dir.path());
+        config.enable_captcha = true;
+        config.captcha_question = "What is my name?".into();
+        config.captcha_answer = "lew".into();
+        let (app, _rx) = test_app(config);
+        let (_, body) = post_form(&app, "name=alice&message=hello&captcha=lew").await;
+        assert!(body.contains("pending approval"));
+    }
+
+    #[tokio::test]
+    async fn test_captcha_inexact_contains() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut config = test_config(dir.path());
+        config.enable_captcha = true;
+        config.captcha_exact = false;
+        config.captcha_question = "What is my name?".into();
+        config.captcha_answer = "lew".into();
+        let (app, _rx) = test_app(config);
+        let (_, body) = post_form(&app, "name=alice&message=hello&captcha=lewis").await;
+        assert!(body.contains("pending approval"));
+    }
+
+    #[tokio::test]
+    async fn test_captcha_inexact_rejects_no_match() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut config = test_config(dir.path());
+        config.enable_captcha = true;
+        config.captcha_exact = false;
+        config.captcha_question = "What is my name?".into();
+        config.captcha_answer = "lew".into();
+        let (app, _rx) = test_app(config);
+        let (_, body) = post_form(&app, "name=alice&message=hello&captcha=bob").await;
+        assert!(body.contains("Wrong answer"));
+    }
+
+    #[tokio::test]
+    async fn test_captcha_casesensitive() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut config = test_config(dir.path());
+        config.enable_captcha = true;
+        config.captcha_question = "What is my name?".into();
+        config.captcha_answer = "lew".into();
+        config.captcha_casesensitive = true;
+        let (app, _rx) = test_app(config);
+        let (_, body) = post_form(&app, "name=alice&message=hello&captcha=Lew").await;
+        assert!(body.contains("Wrong answer"));
+    }
+
+    #[tokio::test]
+    async fn test_captcha_case_insensitive() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut config = test_config(dir.path());
+        config.enable_captcha = true;
+        config.captcha_question = "What is my name?".into();
+        config.captcha_answer = "lew".into();
+        config.captcha_casesensitive = false;
+        let (app, _rx) = test_app(config);
+        let (_, body) = post_form(&app, "name=alice&message=hello&captcha=LEW").await;
+        assert!(body.contains("pending approval"));
+    }
+
+    #[tokio::test]
+    async fn test_captcha_disabled_skips_check() {
+        let dir = tempfile::tempdir().unwrap();
+        let config = test_config(dir.path());
+        let (app, _rx) = test_app(config);
+        let (_, body) = post_form(&app, "name=alice&message=hello").await;
+        assert!(body.contains("pending approval"));
+    }
+
+    #[tokio::test]
+    async fn test_captcha_shows_in_form() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut config = test_config(dir.path());
+        config.enable_captcha = true;
+        config.captcha_question = "What is 2+2?".into();
+        config.captcha_answer = "4".into();
+        let (app, _rx) = test_app(config);
+        let html = get_index(&app).await;
+        assert!(html.contains("What is 2+2?"));
+        assert!(html.contains("name=\"captcha\""));
     }
 }
