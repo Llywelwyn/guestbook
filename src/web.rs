@@ -1,0 +1,110 @@
+use axum::{
+    extract::State,
+    http::header,
+    response::{Html, IntoResponse},
+    routing::{get, post},
+    Form, Router,
+};
+use serde::Deserialize;
+use std::sync::Arc;
+use uuid::Uuid;
+
+use crate::config::Config;
+use crate::entries::{self, Entry, EntryMeta, Status};
+use crate::render::{self, FORM_HTML, STYLE_CSS};
+
+pub struct AppState {
+    pub config: Config,
+    pub tx: tokio::sync::mpsc::Sender<Entry>,
+}
+
+#[derive(Deserialize)]
+pub struct SubmitForm {
+    name: String,
+    #[serde(default)]
+    website: String,
+    message: String,
+    #[serde(default)]
+    url: String, // honeypot
+}
+
+pub fn router(state: Arc<AppState>) -> Router {
+    Router::new()
+        .route("/", get(index))
+        .route("/submit", post(submit))
+        .route("/style.css", get(style))
+        .with_state(state)
+}
+
+async fn index(State(state): State<Arc<AppState>>) -> Html<String> {
+    let entries_dir = state.config.data_dir.join("entries");
+    let entries = entries::read_approved(&entries_dir);
+    let html = render::render_page(
+        &state.config.site_title,
+        &state.config.site_url,
+        &entries,
+        FORM_HTML,
+    );
+    Html(html)
+}
+
+async fn submit(
+    State(state): State<Arc<AppState>>,
+    Form(form): Form<SubmitForm>,
+) -> Html<String> {
+    // Honeypot check — silently discard
+    if !form.url.is_empty() {
+        return Html("Thanks! Your message is pending approval.".to_string());
+    }
+
+    // Validation
+    let name = form.name.trim().to_string();
+    let message = form.message.trim().to_string();
+    let website = form.website.trim().to_string();
+
+    if name.is_empty() || message.is_empty() {
+        return Html("Name and message are required.".to_string());
+    }
+    if name.len() > 50 {
+        return Html("Name is too long (max 50 chars).".to_string());
+    }
+    if website.len() > 100 {
+        return Html("Website is too long (max 100 chars).".to_string());
+    }
+    if message.len() > 1000 {
+        return Html("Message is too long (max 1000 chars).".to_string());
+    }
+
+    let short_id = &Uuid::new_v4().to_string()[..8];
+    let date = chrono::Utc::now().format("%Y-%m-%d").to_string();
+    let filename = format!("{date}-{short_id}.txt");
+
+    let entry = Entry {
+        id: filename.trim_end_matches(".txt").to_string(),
+        meta: EntryMeta {
+            name,
+            date,
+            website,
+            status: Status::Pending,
+        },
+        body: message,
+    };
+
+    // Write to disk
+    let entries_dir = state.config.data_dir.join("entries");
+    std::fs::create_dir_all(&entries_dir).ok();
+    let path = entries_dir.join(&filename);
+    if let Err(e) = std::fs::write(&path, entry.to_file_contents()) {
+        tracing::error!("failed to write entry: {e}");
+        return Html("Something went wrong. Please try again.".to_string());
+    }
+
+    // Notify telegram task
+    let _ = state.tx.send(entry).await;
+
+    Html("Thanks! Your message is pending approval.".to_string())
+}
+
+async fn style() -> impl IntoResponse {
+    ([(header::CONTENT_TYPE, "text/css")], STYLE_CSS)
+}
