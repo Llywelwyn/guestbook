@@ -7,18 +7,30 @@ pub const DEFAULT_TEMPLATE: &str = r#"<!DOCTYPE html>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{{title}}</title>
   <style>
-    body {
+    pre {
+      font: unset;
       max-width: 70ch;
-      line-height: 1.5;
+
       margin: 0 auto;
       padding: 1rem;
+      white-space: pre-wrap;
+      word-wrap: break-word;
     }
   </style>
 </head>
 <body>
-  <h1>guestbook</h1>
-  {{form}}
-  {{entries}}
+<pre>
+{{title}}
+
+guestbook
+=========
+
+{{form}}
+
+entries
+=======
+{{entries}}
+</pre>
 </body>
 </html>
 "#;
@@ -40,27 +52,32 @@ fn render_entries(entries: &[Entry]) -> String {
 }
 
 fn render_entry(entry: &Entry) -> String {
-    let mut header = format!(
-        "  <div class=\"entry\">\n    <p>{} - <b>{}</b>",
-        entry.meta.date, entry.meta.name
-    );
+    let mut header = format!("{} - {}", entry.meta.date, entry.meta.name);
     if !entry.meta.website.is_empty() {
         header.push_str(&format!(
             " (<a href=\"{}\">{}</a>)",
             entry.meta.website, entry.meta.website
         ));
     }
-    header.push_str("</p>\n");
-    format!("{header}    {}\n  </div>\n", entry.body)
+    format!(
+        "\n{header}\n\n{}\n\n------------------------------------------------------------\n",
+        entry.body
+    )
 }
 
-pub const FORM_HTML: &str = r#"  <form method="post" action="/submit">
-    <input name="name" placeholder="name" required>
-    <input name="website" placeholder="website (optional)">
-    <textarea name="message" placeholder="message" required></textarea>
-    <input name="url" style="display:none" tabindex="-1" autocomplete="off">
-    <button type="submit">sign</button>
-  </form>"#;
+pub const FORM_HTML: &str = r#"If you visited my site, please sign my guestbook!
+<form method="post" action="/submit" accept-charset="UTF-8">
+Your name:
+<input name="name" required>
+
+Your website (optional):
+<input name="website">
+
+Your message:
+<textarea name="message" rows="8" cols="60" required></textarea>
+<input name="url" style="display:none" tabindex="-1" autocomplete="off">
+<button type="submit">sign</button>
+</form>"#;
 
 #[cfg(test)]
 mod tests {
@@ -85,6 +102,7 @@ mod tests {
         let html = render_page(DEFAULT_TEMPLATE, "ily.rs", &[], FORM_HTML);
         assert!(html.contains("<title>ily.rs</title>"));
         assert!(html.contains("action=\"/submit\""));
+        assert!(html.contains("<pre style=font:unset>"));
     }
 
     #[test]
@@ -99,9 +117,9 @@ mod tests {
     fn test_render_entry_no_website() {
         let entry = make_entry("alice", "2026-04-09", "Hello!");
         let html = render_page(DEFAULT_TEMPLATE, "test", &[entry], FORM_HTML);
-        assert!(html.contains("<b>alice</b>"));
+        assert!(html.contains("2026-04-09 - alice"));
         assert!(html.contains("Hello!"));
-        assert!(!html.contains("<hr"));
+        assert!(html.contains("----"));
     }
 
     #[test]
