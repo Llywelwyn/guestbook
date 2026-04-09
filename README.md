@@ -1,3 +1,6 @@
+[![Crates.io Version](https://img.shields.io/crates/v/guestbook)](https://crates.io/crates/guestbook)
+[![Crates.io License](https://img.shields.io/crates/l/guestbook)](./LICENSE)
+
 `guestbook` is a self-hosted guestbook web service with:
 - entries stored in plaintext,
 - notifications and moderation via [Telegram](#telegram),
@@ -25,11 +28,18 @@ Aesthetically, essentially all of the HTML and CSS can be configured. There's a 
 
 #### Build
 
-`guestbook` is written in [Rust](https://www.rust-lang.org). The easiest way to install it is via `cargo`.
+`guestbook` is written in [Rust](https://www.rust-lang.org). Clone the repo and build with `cargo`.
 
 ```bash
-cargo install guestbook
+git clone https://git.ily.rs/lew/guestbook
+cd guestbook
+cp .env.example .env  # edit with your values
+cargo run --release
 ```
+
+Alternatively, install directly from [crates.io](https://crates.io/crates/guestbook) with `cargo install guestbook`. The binary uses the current working directory for its `.env` and data, so run it from whichever directory you want it to operate out of.
+
+This will run the site on localhost on the port you've configured, or `8123` by default. I'll leave exposing it to the web to you, but personally I run [my guestbook](https://ily.rs/g) through a reverse proxy with [Caddy](https://caddyserver.com).
 
 #### NixOS
 
@@ -236,9 +246,9 @@ services.guestbook = {
 
 ### Telegram
 
-To enable Telegram moderation, create a bot via [@BotFather](https://t.me/BotFather) and set `BOOK_TELEGRAM_BOT_TOKEN` to the token it gives you. Set `BOOK_TELEGRAM_CHAT_ID` to the chat ID where you want notifications sent — the easiest way to find this is to message the bot and check the [getUpdates](https://api.telegram.org/bot<token>/getUpdates) endpoint.
+To enable Telegram moderation, create a bot via [@BotFather](https://t.me/BotFather) and set `BOOK_TELEGRAM_BOT_TOKEN` to the token it gives you. Set `BOOK_TELEGRAM_CHAT_ID` to the chat ID where you want notifications sent: the easiest way to find this is to message the bot and check the [getUpdates](https://api.telegram.org/bot<token>/getUpdates) endpoint.
 
-When a visitor submits an entry, the bot sends a message with the entry details and `/allow_<id>` and `/deny_<id>` commands. Tap either to approve or deny.
+When a visitor submits an entry, the bot sends a message with the entry details and `/allow_<id>` and `/deny_<id>` commands. Tap either to approve or deny. If you approve something and later want to deny it, or vice versa, just hit the opposite option and it'll work as expected.
 
 ---
 
@@ -336,4 +346,32 @@ entries
 .entry-website {}
 .entry-body {}
 .entry-separator {}
+```
+
+---
+
+### License
+
+```
+MIT License
+
+Copyright (c) 2026 Lewis Wynne
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
 ```

@@ -1,6 +1,6 @@
 [package]
 name = "guestbook"
-version = "0.1.2"
+version = "0.2.0"
 edition = "2021"
 description = "A configurable web guestbook made to be easy to use, with entries in plain text files, options for honeypots and captchas to deter spam, and moderation via Telegram bot."
 license = "MIT"
