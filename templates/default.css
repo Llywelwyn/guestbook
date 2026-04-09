@@ -21,8 +21,32 @@
 .guestbook-canvas {
   border: 1px solid #000;
   cursor: crosshair;
+  display: block;
 }
-.guestbook-canvas-reset {}
+.guestbook-canvas-tools {
+  display: block;
+}
+.guestbook-canvas-tools a {
+  cursor: pointer;
+}
+.guestbook-swatch {
+  display: inline-block;
+  width: 0.85em;
+  height: 0.85em;
+  border: 1px solid #000;
+  cursor: pointer;
+  vertical-align: middle;
+  box-sizing: border-box;
+  margin: 0 1px;
+}
+.guestbook-swatch.active {
+  border: 1px solid #000;
+  outline: 1px solid #000;
+}
+.guestbook-size-slider {
+  width: 4em;
+  vertical-align: middle;
+}
 .entry-drawing {
   max-width: 100%;
 }

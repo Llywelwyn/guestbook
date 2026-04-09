@@ -42,35 +42,53 @@ pub fn render_form(config: &Config) -> String {
         format!(
             r##"<label class="guestbook-label">{label}</label>
 <canvas class="guestbook-canvas" width="{w}" height="{h}"></canvas>
-<a href="#" class="guestbook-canvas-reset">Reset</a>
-<input type="hidden" name="drawing">
-<script>
-(function(){{
+<span class="guestbook-canvas-tools"><span class="guestbook-swatch active" data-c="#000" style="background:#000"></span><span class="guestbook-swatch" data-c="#e03131" style="background:#e03131"></span><span class="guestbook-swatch" data-c="#2f9e44" style="background:#2f9e44"></span><span class="guestbook-swatch" data-c="#1971c2" style="background:#1971c2"></span><span class="guestbook-swatch" data-c="#f08c00" style="background:#f08c00"></span><span class="guestbook-swatch" data-c="#9c36b5" style="background:#9c36b5"></span><span class="guestbook-swatch" data-c="#e64980" style="background:#e64980"></span><span class="guestbook-swatch" data-c="eraser" style="background:#fff" title="eraser"></span> <input type="range" class="guestbook-size-slider" min="1" max="20" value="5"> | <a href="#" class="guestbook-undo">undo</a> | <a href="#" class="guestbook-canvas-reset">reset</a></span><input type="hidden" name="drawing"><script>(function(){{
   var c=document.querySelector('.guestbook-canvas'),
       x=c.getContext('2d'),
-      d=false,lx,ly;
+      d=false,lx,ly,h=[],col='#000',sz=5,eraser=false;
+  x.strokeStyle=col;x.lineWidth=sz;x.lineCap='round';x.lineJoin='round';
   function pos(e){{var r=c.getBoundingClientRect();
     return[e.clientX-r.left,e.clientY-r.top]}}
   function tpos(e){{var r=c.getBoundingClientRect(),t=e.touches[0];
     return[t.clientX-r.left,t.clientY-r.top]}}
-  c.addEventListener('mousedown',function(e){{d=true;var p=pos(e);lx=p[0];ly=p[1]}});
+  function save(){{if(h.length>=20)h.shift();
+    h.push(x.getImageData(0,0,c.width,c.height))}}
+  function dot(px,py){{x.beginPath();x.arc(px,py,sz/2,0,Math.PI*2);
+    if(eraser){{x.save();x.globalCompositeOperation='destination-out';x.fillStyle='#000';x.fill();x.restore()}}
+    else{{x.fillStyle=col;x.fill()}}}}
+  c.addEventListener('mousedown',function(e){{save();d=true;var p=pos(e);lx=p[0];ly=p[1];dot(lx,ly)}});
   c.addEventListener('mousemove',function(e){{if(!d)return;var p=pos(e);
-    x.beginPath();x.moveTo(lx,ly);x.lineTo(p[0],p[1]);x.stroke();lx=p[0];ly=p[1]}});
+    if(eraser)x.globalCompositeOperation='destination-out';
+    x.beginPath();x.moveTo(lx,ly);x.lineTo(p[0],p[1]);x.stroke();
+    if(eraser)x.globalCompositeOperation='source-over';
+    lx=p[0];ly=p[1]}});
   c.addEventListener('mouseup',function(){{d=false}});
   c.addEventListener('mouseleave',function(){{d=false}});
-  c.addEventListener('touchstart',function(e){{e.preventDefault();var p=tpos(e);lx=p[0];ly=p[1]}});
+  c.addEventListener('touchstart',function(e){{e.preventDefault();save();var p=tpos(e);lx=p[0];ly=p[1];dot(lx,ly)}});
   c.addEventListener('touchmove',function(e){{e.preventDefault();var p=tpos(e);
-    x.beginPath();x.moveTo(lx,ly);x.lineTo(p[0],p[1]);x.stroke();lx=p[0];ly=p[1]}});
+    if(eraser)x.globalCompositeOperation='destination-out';
+    x.beginPath();x.moveTo(lx,ly);x.lineTo(p[0],p[1]);x.stroke();
+    if(eraser)x.globalCompositeOperation='source-over';
+    lx=p[0];ly=p[1]}});
+  var sw=document.querySelectorAll('.guestbook-swatch');
+  sw.forEach(function(s){{s.addEventListener('click',function(){{
+    sw.forEach(function(el){{el.classList.remove('active')}});
+    s.classList.add('active');var c2=s.getAttribute('data-c');
+    if(c2==='eraser'){{eraser=true}}else{{eraser=false;col=c2;x.strokeStyle=col}}
+  }})}});
+  document.querySelector('.guestbook-size-slider').addEventListener('input',function(e){{
+    sz=parseInt(e.target.value);x.lineWidth=sz}});
+  document.querySelector('.guestbook-undo').addEventListener('click',function(e){{
+    e.preventDefault();if(h.length)x.putImageData(h.pop(),0,0)}});
   document.querySelector('.guestbook-canvas-reset').addEventListener('click',function(e){{
-    e.preventDefault();x.clearRect(0,0,c.width,c.height)}});
+    e.preventDefault();h=[];x.clearRect(0,0,c.width,c.height)}});
   c.closest('form').addEventListener('submit',function(){{
     var px=new Uint32Array(x.getImageData(0,0,c.width,c.height).data.buffer);
     if(px.some(function(v){{return v!==0}})){{
       c.closest('form').querySelector('[name=drawing]').value=c.toDataURL('image/png');
     }}
   }});
-}})();
-</script>"##,
+}})();</script>"##,
             label = config.label_drawing,
             w = config.canvas_width,
             h = config.canvas_height,
@@ -88,8 +106,7 @@ pub fn render_form(config: &Config) -> String {
 <label class="guestbook-label">{label_message}</label>
 <textarea class="guestbook-textarea" name="message" style="width:{tw}px;height:{th}px" required></textarea>
 {captcha_section}
-{drawing_section}
-<input name="url" style="display:none" tabindex="-1" autocomplete="off">
+{drawing_section}<input name="url" style="display:none" tabindex="-1" autocomplete="off">
 <button class="guestbook-button" type="submit">{button}</button>
 </form>"#,
         prompt = config.form_prompt,
@@ -382,7 +399,7 @@ mod tests {
         assert!(form.contains("<canvas"));
         assert!(form.contains("class=\"guestbook-canvas\""));
         assert!(form.contains("name=\"drawing\""));
-        assert!(form.contains("Reset"));
+        assert!(form.contains("reset"));
     }
 
     #[test]
