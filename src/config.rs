@@ -10,6 +10,8 @@ pub struct Config {
     pub telegram_bot_token: String,
     pub telegram_chat_id: i64,
     pub honeypot: bool,
+    pub max_name_length: usize,
+    pub max_message_length: usize,
 }
 
 impl Config {
@@ -37,6 +39,14 @@ impl Config {
             honeypot: env::var("BOOK_HONEYPOT")
                 .map(|v| v != "false")
                 .unwrap_or(true),
+            max_name_length: env::var("BOOK_MAX_NAME_LENGTH")
+                .unwrap_or_else(|_| "50".into())
+                .parse()
+                .map_err(|_| "BOOK_MAX_NAME_LENGTH must be a number")?,
+            max_message_length: env::var("BOOK_MAX_MESSAGE_LENGTH")
+                .unwrap_or_else(|_| "1000".into())
+                .parse()
+                .map_err(|_| "BOOK_MAX_MESSAGE_LENGTH must be a number")?,
         })
     }
 }

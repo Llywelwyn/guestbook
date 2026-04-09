@@ -65,14 +65,16 @@ async fn submit(
     if name.is_empty() || message.is_empty() {
         return Html("Name and message are required.".to_string());
     }
-    if name.len() > 50 {
-        return Html("Name is too long (max 50 chars).".to_string());
+    let max_name = state.config.max_name_length;
+    if max_name > 0 && name.len() > max_name {
+        return Html(format!("Name is too long (max {max_name} chars)."));
     }
     if website.len() > 100 {
         return Html("Website is too long (max 100 chars).".to_string());
     }
-    if message.len() > 1000 {
-        return Html("Message is too long (max 1000 chars).".to_string());
+    let max_msg = state.config.max_message_length;
+    if max_msg > 0 && message.len() > max_msg {
+        return Html(format!("Message is too long (max {max_msg} chars)."));
     }
 
     let short_id = &Uuid::new_v4().to_string()[..8];

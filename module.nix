@@ -51,6 +51,18 @@ in
       description = "Enable honeypot field for spam prevention.";
     };
 
+    maxNameLength = mkOption {
+      type = types.int;
+      default = 50;
+      description = "Maximum length for names. 0 for unlimited.";
+    };
+
+    maxMessageLength = mkOption {
+      type = types.int;
+      default = 1000;
+      description = "Maximum length for messages. 0 for unlimited.";
+    };
+
     user = mkOption {
       type = types.str;
       default = "guestbook";
@@ -87,6 +99,8 @@ in
           BOOK_SITE_URL = cfg.siteUrl;
           BOOK_TELEGRAM_CHAT_ID = toString cfg.telegramChatId;
           BOOK_HONEYPOT = if cfg.honeypot then "true" else "false";
+          BOOK_MAX_NAME_LENGTH = toString cfg.maxNameLength;
+          BOOK_MAX_MESSAGE_LENGTH = toString cfg.maxMessageLength;
         };
         serviceConfig = {
           Type = "simple";
