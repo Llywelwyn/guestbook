@@ -48,7 +48,7 @@ This will run the site on localhost on the port you've configured, or `8123` by 
 ```nix
 # flake.nix
 {
-  inputs.guestbook.url = "github:llywelwyn/guestbook";
+  inputs.guestbook.url = "git+https://git.ily.rs/lew/guestbook";
 
   outputs = { self, nixpkgs, guestbook, ... }: {
     nixosConfigurations.myhost = nixpkgs.lib.nixosSystem {
