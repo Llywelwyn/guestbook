@@ -37,7 +37,7 @@ pub fn router(state: Arc<AppState>) -> Router {
 async fn index(State(state): State<Arc<AppState>>) -> Html<String> {
     let entries_dir = state.config.data_dir.join("entries");
     let entries = entries::read_approved(&entries_dir);
-    let form = if state.config.open_registration {
+    let form = if state.config.enable_submissions {
         render::render_form(&state.config)
     } else {
         String::new()
@@ -56,19 +56,19 @@ async fn submit(
     State(state): State<Arc<AppState>>,
     Form(form): Form<SubmitForm>,
 ) -> Html<String> {
-    if !state.config.open_registration {
+    if !state.config.enable_submissions {
         return Html("Submissions are closed.".to_string());
     }
 
     // Honeypot check — silently discard
-    if state.config.honeypot && !form.url.is_empty() {
+    if state.config.enable_honeypot && !form.url.is_empty() {
         return Html("Thanks! Your message is pending approval.".to_string());
     }
 
     // Validation
     let name = form.name.trim().to_string();
     let message = form.message.trim().to_string();
-    let website = if state.config.enable_website_field {
+    let website = if state.config.enable_website_links {
         form.website.trim().to_string()
     } else {
         String::new()
@@ -136,13 +136,13 @@ mod tests {
 
             telegram_bot_token: "fake".into(),
             telegram_chat_id: 0,
-            honeypot: true,
+            enable_honeypot: true,
             max_name_length: 50,
             max_message_length: 1000,
             max_website_length: 100,
-            open_registration: true,
-            enable_website_field: true,
-            allow_html_injection: true,
+            enable_submissions: true,
+            enable_website_links: true,
+            enable_html_injection: true,
             template: None,
             separator: "---".into(),
             style: String::new(),
@@ -186,7 +186,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_open_registration_shows_form() {
+    async fn test_enable_submissions_shows_form() {
         let dir = tempfile::tempdir().unwrap();
         let config = test_config(dir.path());
         let (app, _rx) = test_app(config);
@@ -198,7 +198,7 @@ mod tests {
     async fn test_closed_registration_hides_form() {
         let dir = tempfile::tempdir().unwrap();
         let mut config = test_config(dir.path());
-        config.open_registration = false;
+        config.enable_submissions = false;
         let (app, _rx) = test_app(config);
         let html = get_index(&app).await;
         assert!(!html.contains("action=\"/submit\""));
@@ -208,7 +208,7 @@ mod tests {
     async fn test_closed_registration_rejects_submit() {
         let dir = tempfile::tempdir().unwrap();
         let mut config = test_config(dir.path());
-        config.open_registration = false;
+        config.enable_submissions = false;
         let (app, _rx) = test_app(config);
         let (status, body) = post_form(&app, "name=test&message=hello").await;
         assert_eq!(status, StatusCode::OK);
@@ -234,7 +234,7 @@ mod tests {
     async fn test_honeypot_disabled_allows_url_field() {
         let dir = tempfile::tempdir().unwrap();
         let mut config = test_config(dir.path());
-        config.honeypot = false;
+        config.enable_honeypot = false;
         let (app, _rx) = test_app(config);
         let (_, body) = post_form(&app, "name=user&message=hello&url=http://mysite.com").await;
         assert!(body.contains("pending approval"));
@@ -313,7 +313,7 @@ mod tests {
     async fn test_website_field_disabled_ignores_website() {
         let dir = tempfile::tempdir().unwrap();
         let mut config = test_config(dir.path());
-        config.enable_website_field = false;
+        config.enable_website_links = false;
         let (app, _rx) = test_app(config);
         let (_, body) = post_form(&app, "name=alice&message=hello&website=http://evil.com").await;
         assert!(body.contains("pending approval"));
@@ -328,7 +328,7 @@ mod tests {
     async fn test_website_field_disabled_hides_form_field() {
         let dir = tempfile::tempdir().unwrap();
         let mut config = test_config(dir.path());
-        config.enable_website_field = false;
+        config.enable_website_links = false;
         let (app, _rx) = test_app(config);
         let html = get_index(&app).await;
         assert!(!html.contains("name=\"website\""));

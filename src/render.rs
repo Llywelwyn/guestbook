@@ -20,7 +20,7 @@ pub fn render_page(template: &str, config: &Config, entries: &[Entry], form_html
 }
 
 pub fn render_form(config: &Config) -> String {
-    let website_section = if config.enable_website_field {
+    let website_section = if config.enable_website_links {
         format!(
             "\n<label class=\"guestbook-label\">{}</label>\n<input class=\"guestbook-input\" name=\"website\">\n",
             config.label_website
@@ -67,7 +67,7 @@ fn render_entries(entries: &[Entry], config: &Config) -> String {
 }
 
 fn render_entry(entry: &Entry, config: &Config) -> String {
-    let name = if config.allow_html_injection {
+    let name = if config.enable_html_injection {
         entry.meta.name.clone()
     } else {
         escape_html(&entry.meta.name)
@@ -76,7 +76,7 @@ fn render_entry(entry: &Entry, config: &Config) -> String {
         "<span class=\"entry-header\">{} - <span class=\"entry-name\">{}</span>",
         entry.meta.date, name
     );
-    if config.enable_website_field && !entry.meta.website.is_empty() {
+    if config.enable_website_links && !entry.meta.website.is_empty() {
         let website = escape_html(&entry.meta.website);
         header.push_str(&format!(
             " (<a class=\"entry-website\" href=\"{}\">{}</a>)",
@@ -84,7 +84,7 @@ fn render_entry(entry: &Entry, config: &Config) -> String {
         ));
     }
     header.push_str("</span>");
-    let body = if config.allow_html_injection {
+    let body = if config.enable_html_injection {
         entry.body.clone()
     } else {
         escape_html(&entry.body)
@@ -109,13 +109,13 @@ mod tests {
 
             telegram_bot_token: "fake".into(),
             telegram_chat_id: 0,
-            honeypot: true,
+            enable_honeypot: true,
             max_name_length: 50,
             max_message_length: 1000,
             max_website_length: 100,
-            open_registration: true,
-            enable_website_field: true,
-            allow_html_injection: true,
+            enable_submissions: true,
+            enable_website_links: true,
+            enable_html_injection: true,
             template: None,
             separator: "---".into(),
             style: String::new(),
@@ -234,7 +234,7 @@ mod tests {
     #[test]
     fn test_render_form_hides_website_when_disabled() {
         let mut config = test_config();
-        config.enable_website_field = false;
+        config.enable_website_links = false;
         let form = render_form(&config);
         assert!(!form.contains("name=\"website\""));
         assert!(!form.contains(&config.label_website));
@@ -262,7 +262,7 @@ mod tests {
     #[test]
     fn test_render_entry_hides_website_when_disabled() {
         let mut config = test_config();
-        config.enable_website_field = false;
+        config.enable_website_links = false;
         let mut entry = make_entry("bob", "2026-04-09", "Hi!");
         entry.meta.website = "https://bob.com".into();
         let form = render_form(&config);
@@ -274,7 +274,7 @@ mod tests {
     #[test]
     fn test_render_entry_escapes_html_when_injection_disabled() {
         let mut config = test_config();
-        config.allow_html_injection = false;
+        config.enable_html_injection = false;
         let entry = make_entry("<b>hacker</b>", "2026-04-09", "<script>alert('xss')</script>");
         let form = render_form(&config);
         let html = render_page(DEFAULT_TEMPLATE, &config, &[entry], &form);
@@ -286,7 +286,7 @@ mod tests {
     #[test]
     fn test_render_entry_preserves_html_when_injection_enabled() {
         let mut config = test_config();
-        config.allow_html_injection = true;
+        config.enable_html_injection = true;
         let entry = make_entry("carol", "2026-04-09", "<b>Bold</b>");
         let form = render_form(&config);
         let html = render_page(DEFAULT_TEMPLATE, &config, &[entry], &form);
