@@ -1,39 +1,7 @@
 use crate::config::Config;
 use crate::entries::Entry;
 
-pub const DEFAULT_TEMPLATE: &str = r#"<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>{{title}}</title>
-  <style>
-    .page-container {
-      max-width: 70ch;
-      margin: 0 auto;
-      padding: 1rem;
-      white-space: pre-wrap;
-      word-wrap: break-word;
-    }
-  </style>
-  {{style}}
-</head>
-<body>
-<div class="page-container">
-{{title}}
-
-guestbook
-=========
-
-{{form}}
-
-entries
-=======
-{{entries}}
-</div>
-</body>
-</html>
-"#;
+pub const DEFAULT_TEMPLATE: &str = include_str!("../templates/default.html");
 
 pub fn render_page(template: &str, config: &Config, entries: &[Entry], form_html: &str) -> String {
     let entries_html = render_entries(entries, &config.separator);
@@ -200,7 +168,7 @@ mod tests {
     fn test_render_empty_form_when_closed() {
         let config = test_config();
         let html = render_page(DEFAULT_TEMPLATE, &config, &[], "");
-        assert!(!html.contains("guestbook-form"));
+        assert!(!html.contains("action=\"/submit\""));
     }
 
     #[test]
