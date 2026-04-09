@@ -3,13 +3,14 @@
 
 `guestbook` is a self-hosted guestbook web service with:
 - entries stored in plaintext,
-- notifications and moderation via [Telegram](#telegram),
+- optional [drawing canvas](#drawing) for visitors to sketch alongside their message,
+- notifications and moderation via [Telegram](#telegram) (including drawing previews),
 - spam prevention via honeypot and/or [captcha](#captcha),
 - completely customisable [styling](#customisation),
 
 and more, written in Rust, and inspired by [t0.vc/g](https://t0.vc/g).
 
-`guestbook` is a single binary that serves a single-page guestbook aimed at personal sites. There's a form for visitors to submit a name, message, and optionally a link to their own site. Entries are written to plain text files with TOML frontmatter, and are initially marked as pending. The frontmatter can be manually edited to mark entries as approved or denied, or a Telegram bot can be hooked up for notifications and moderation. Running the Telegram bot just requires handing over a bot token, and it'll run off the same binary.
+`guestbook` is a single binary that serves a single-page guestbook aimed at personal sites. There's a form for visitors to submit a name, message, and optionally a link to their own site. Visitors can also draw a picture if the drawing feature is enabled. Entries are written to plain text files with TOML frontmatter, and are initially marked as pending. The frontmatter can be manually edited to mark entries as approved or denied, or a Telegram bot can be hooked up for notifications and moderation (drawings are sent as photos so you can see them before approving). Running the Telegram bot just requires handing over a bot token, and it'll run off the same binary.
 
 Everything is configured through environment variables (see [`.env.example`](#default-config) for the defaults). If you're hosting with Nix, there's a flake that can set up the `guestbook` service end-to-end, running on a systemd service with a Caddy reverse proxy. Optionally, just ignore the flake and set up all the extra stuff yourself.
 
@@ -252,6 +253,16 @@ services.guestbook = {
 
 ---
 
+### Drawing
+
+Set `BOOK_ENABLE_DRAWINGS=true` to add a drawing canvas to the form. Visitors draw with mouse or touch; on submit, the canvas is converted to a base64 PNG data URL in a hidden field. Drawings are stored as PNGs in `{data_dir}/drawings/` and rendered above the message body, independent of the HTML injection setting.
+
+Server-side validation checks the PNG magic bytes (`\x89PNG\r\n\x1a\n`), then reads width/height from the IHDR chunk and rejects anything that doesn't match `BOOK_CANVAS_WIDTH` x `BOOK_CANVAS_HEIGHT`. Max file size is derived from canvas dimensions (`w * h * 4`, the raw RGBA ceiling). A 2MB request body limit is enforced on all form submissions.
+
+When Telegram moderation is enabled, drawings are sent as photos in the notification so you can see them before approving.
+
+---
+
 ### Telegram
 
 To enable Telegram moderation, create a bot via [@BotFather](https://t.me/BotFather) and set `BOOK_TELEGRAM_BOT_TOKEN` to the token it gives you. Set `BOOK_TELEGRAM_CHAT_ID` to the chat ID where you want notifications sent: the easiest way to find this is to message the bot and check the [getUpdates](https://api.telegram.org/bot<token>/getUpdates) endpoint.
@@ -262,19 +273,20 @@ When a visitor submits an entry, the bot sends a message with the entry details 
 
 ### Entry Format
 
-Each entry is a plain text file in `{data_dir}/entries/`. The filename is `{date}-{short_id}.txt`.
+Each entry is a plain text file in `{data_dir}/entries/`. The filename is `{epoch}_{uuid}.txt`. If the entry has a drawing, the drawing is stored as `{epoch}_{uuid}.png` in `{data_dir}/drawings/` with the same prefix.
 
 ```
 +++
 name = "someone"
-date = "2026-04-09"
+date = "2026-04-09T12:00:00"
 website = "https://example.com"
+drawing = "1744185600_abcd1234.png"
 status = "pending"
 +++
 Message body here.
 ```
 
-The `status` field can be `pending`, `approved`, or `denied`. Only approved entries are displayed. To moderate without Telegram, just edit the file and change `status` to `approved` or `denied`.
+The `status` field can be `pending`, `approved`, or `denied`. Only approved entries are displayed. The `drawing` field is empty when there's no drawing. To moderate without Telegram, just edit the file and change `status` to `approved` or `denied`.
 
 ---
 
