@@ -306,7 +306,19 @@ When Telegram moderation is enabled, voice notes are sent as voice messages in t
 
 To enable Telegram moderation, create a bot via [@BotFather](https://t.me/BotFather) and set `BOOK_TELEGRAM_BOT_TOKEN` to the token it gives you. Set `BOOK_TELEGRAM_CHAT_ID` to the chat ID where you want notifications sent: the easiest way to find this is to message the bot and check the [getUpdates](https://api.telegram.org/bot<token>/getUpdates) endpoint.
 
-When a visitor submits an entry, the bot sends a message with the entry details and `/allow_<id>` and `/deny_<id>` commands, as well as any drawing or voice note attached. Tap either command to approve or deny. If you approve something and later want to deny it, or vice versa, just hit the opposite option and it'll work as expected.
+When a visitor submits an entry, the bot sends a message with the entry details and `/allow_<id>` and `/deny_<id>` commands, as well as any drawing or voice note attached. Tap either command to approve or deny. Denying an entry offers a `/delete_<id>` command to remove it and its media from disk. If you approve something and later want to deny it, or vice versa, just hit the opposite option and it'll work as expected.
+
+The bot also registers these commands in the Telegram command menu (visible when you type `/`):
+
+- `/pending` — list all pending entries with previews
+- `/approved` — list all approved entries
+- `/denied` — list all denied entries
+
+Each listed entry includes a `/view_<id>` link. Viewing an entry shows the full details, drawing, and voice note, along with `/allow_<id>` and `/deny_<id>` commands.
+
+To delete an entry and all its associated media (drawing, voice note), use `/delete_<id>`.
+
+None of these commands require clicking on the links. They'll all just work by typing them in the chat to your bot.
 
 ---
 
