@@ -33,6 +33,8 @@ pub struct SubmitForm {
     captcha: String,
     #[serde(default)]
     drawing: String,
+    #[serde(default)]
+    voice_note: String,
 }
 
 pub fn router(state: Arc<AppState>) -> Router {
@@ -185,6 +187,34 @@ async fn submit(
         None
     };
 
+    // Process voice note if enabled and provided
+    let voice_note_bytes: Option<Vec<u8>> = if state.config.enable_voice_notes && !form.voice_note.is_empty() {
+        let b64 = form.voice_note
+            .strip_prefix("data:audio/webm;codecs=opus;base64,")
+            .unwrap_or("");
+        if b64.is_empty() {
+            None
+        } else {
+            let bytes = match base64::engine::general_purpose::STANDARD.decode(b64) {
+                Ok(b) => b,
+                Err(_) => return Html(render_error_page(&state.config, "Invalid voice note data.")),
+            };
+            let max = state.config.max_voice_note_bytes();
+            if max > 0 && bytes.len() > max {
+                return Html(render_error_page(&state.config, &format!("Voice note is too large (max {} bytes).", max)));
+            }
+
+            // Validate WebM: magic bytes
+            if bytes.len() < 4 || &bytes[..4] != b"\x1a\x45\xdf\xa3" {
+                return Html(render_error_page(&state.config, "Invalid voice note format."));
+            }
+
+            Some(bytes)
+        }
+    } else {
+        None
+    };
+
     let now = chrono::Utc::now();
     let epoch = now.timestamp();
     let short_id = &Uuid::new_v4().to_string()[..8];
@@ -205,6 +235,20 @@ async fn submit(
     } else {
         String::new()
     };
+
+    let voice_note_filename = if let Some(ref bytes) = voice_note_bytes {
+        let vn_name = format!("{prefix}.webm");
+        let vn_dir = state.config.data_dir.join("voice_notes");
+        std::fs::create_dir_all(&vn_dir).ok();
+        if let Err(e) = std::fs::write(vn_dir.join(&vn_name), bytes) {
+            tracing::error!("failed to write voice note: {e}");
+            return Html(render_error_page(&state.config, "Something went wrong. Please try again."));
+        }
+        vn_name
+    } else {
+        String::new()
+    };
+
     let entry = Entry {
         id: filename.trim_end_matches(".txt").to_string(),
         meta: EntryMeta {
@@ -212,7 +256,7 @@ async fn submit(
             date,
             website,
             drawing: drawing_filename,
-            voice_note: String::new(),
+            voice_note: voice_note_filename,
             status: Status::Pending,
         },
         body: message,
@@ -228,7 +272,7 @@ async fn submit(
     }
 
     // Notify telegram task
-    let _ = state.tx.send((entry, drawing_bytes, None)).await;
+    let _ = state.tx.send((entry, drawing_bytes, voice_note_bytes)).await;
 
     Html(render_success_page(&state.config))
 }
@@ -606,6 +650,12 @@ mod tests {
         assert_eq!(status, StatusCode::NOT_FOUND);
     }
 
+    fn fake_webm() -> Vec<u8> {
+        let mut webm = vec![0x1A, 0x45, 0xDF, 0xA3];
+        webm.extend_from_slice(&[0; 50]);
+        webm
+    }
+
     /// Build a fake but valid PNG with the given dimensions.
     fn fake_png(width: u32, height: u32) -> Vec<u8> {
         let mut png = vec![0x89, b'P', b'N', b'G', 0x0d, 0x0a, 0x1a, 0x0a];
@@ -821,5 +871,112 @@ mod tests {
         assert!(body.contains("<!DOCTYPE html>"));
         assert!(body.contains("Name and message are required"));
         assert!(body.contains("back"));
+    }
+
+    #[tokio::test]
+    async fn test_submit_with_voice_note() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut config = test_config(dir.path());
+        config.enable_voice_notes = true;
+        let (app, _rx) = test_app(config);
+
+        let webm = fake_webm();
+        let voice_data = base64::engine::general_purpose::STANDARD.encode(&webm);
+        let data_url = format!("data:audio/webm;codecs=opus;base64,{voice_data}");
+        let body = format!(
+            "name=alice&message=hello&voice_note={}",
+            urlencoding::encode(&data_url)
+        );
+        let (_, resp) = post_form(&app, &body).await;
+        assert!(resp.contains("pending approval"));
+
+        let entries: Vec<_> = std::fs::read_dir(dir.path().join("entries"))
+            .unwrap()
+            .collect();
+        assert_eq!(entries.len(), 1);
+        let content = std::fs::read_to_string(entries[0].as_ref().unwrap().path()).unwrap();
+        assert!(content.contains("voice_note = "));
+
+        let voice_notes: Vec<_> = std::fs::read_dir(dir.path().join("voice_notes"))
+            .unwrap()
+            .collect();
+        assert_eq!(voice_notes.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn test_submit_without_voice_note() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut config = test_config(dir.path());
+        config.enable_voice_notes = true;
+        let (app, _rx) = test_app(config);
+        let (_, resp) = post_form(&app, "name=alice&message=hello").await;
+        assert!(resp.contains("pending approval"));
+
+        let vn_dir = dir.path().join("voice_notes");
+        if vn_dir.exists() {
+            let count = std::fs::read_dir(&vn_dir).unwrap().count();
+            assert_eq!(count, 0);
+        }
+    }
+
+    #[tokio::test]
+    async fn test_submit_voice_note_too_large() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut config = test_config(dir.path());
+        config.enable_voice_notes = true;
+        config.voice_note_max_duration = 1;
+        let (app, _rx) = test_app(config);
+
+        let mut webm = vec![0x1A, 0x45, 0xDF, 0xA3];
+        webm.extend_from_slice(&[0; 20_000]);
+        let voice_data = base64::engine::general_purpose::STANDARD.encode(&webm);
+        let data_url = format!("data:audio/webm;codecs=opus;base64,{voice_data}");
+        let body = format!(
+            "name=alice&message=hello&voice_note={}",
+            urlencoding::encode(&data_url)
+        );
+        let (_, resp) = post_form(&app, &body).await;
+        assert!(resp.contains("too large"));
+    }
+
+    #[tokio::test]
+    async fn test_submit_voice_note_rejects_non_webm() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut config = test_config(dir.path());
+        config.enable_voice_notes = true;
+        let (app, _rx) = test_app(config);
+
+        let voice_data = base64::engine::general_purpose::STANDARD.encode(b"not a webm file");
+        let data_url = format!("data:audio/webm;codecs=opus;base64,{voice_data}");
+        let body = format!(
+            "name=alice&message=hello&voice_note={}",
+            urlencoding::encode(&data_url)
+        );
+        let (_, resp) = post_form(&app, &body).await;
+        assert!(resp.contains("Invalid voice note"));
+    }
+
+    #[tokio::test]
+    async fn test_submit_voice_note_ignored_when_disabled() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut config = test_config(dir.path());
+        config.enable_voice_notes = false;
+        let (app, _rx) = test_app(config);
+
+        let webm = fake_webm();
+        let voice_data = base64::engine::general_purpose::STANDARD.encode(&webm);
+        let data_url = format!("data:audio/webm;codecs=opus;base64,{voice_data}");
+        let body = format!(
+            "name=alice&message=hello&voice_note={}",
+            urlencoding::encode(&data_url)
+        );
+        let (_, resp) = post_form(&app, &body).await;
+        assert!(resp.contains("pending approval"));
+
+        let entries: Vec<_> = std::fs::read_dir(dir.path().join("entries"))
+            .unwrap()
+            .collect();
+        let content = std::fs::read_to_string(entries[0].as_ref().unwrap().path()).unwrap();
+        assert!(content.contains("voice_note = \"\""));
     }
 }
