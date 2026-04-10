@@ -18,7 +18,7 @@ use crate::render::{self, DEFAULT_TEMPLATE, render_error_page, render_success_pa
 
 pub struct AppState {
     pub config: Config,
-    pub tx: tokio::sync::mpsc::Sender<(Entry, Option<Vec<u8>>)>,
+    pub tx: tokio::sync::mpsc::Sender<(Entry, Option<Vec<u8>>, Option<Vec<u8>>)>,
 }
 
 #[derive(Deserialize)]
@@ -228,7 +228,7 @@ async fn submit(
     }
 
     // Notify telegram task
-    let _ = state.tx.send((entry, drawing_bytes)).await;
+    let _ = state.tx.send((entry, drawing_bytes, None)).await;
 
     Html(render_success_page(&state.config))
 }
@@ -283,7 +283,7 @@ mod tests {
         }
     }
 
-    fn test_app(config: Config) -> (Router, tokio::sync::mpsc::Receiver<(Entry, Option<Vec<u8>>)>) {
+    fn test_app(config: Config) -> (Router, tokio::sync::mpsc::Receiver<(Entry, Option<Vec<u8>>, Option<Vec<u8>>)>) {
         let (tx, rx) = tokio::sync::mpsc::channel(32);
         let state = Arc::new(AppState { config, tx });
         (router(state), rx)

@@ -18,7 +18,7 @@ async fn main() {
 
     std::fs::create_dir_all(&entries_dir).ok();
 
-    let (tx, rx) = tokio::sync::mpsc::channel::<(entries::Entry, Option<Vec<u8>>)>(32);
+    let (tx, rx) = tokio::sync::mpsc::channel::<(entries::Entry, Option<Vec<u8>>, Option<Vec<u8>>)>(32);
 
     // Spawn telegram tasks if configured
     match (&config.telegram_bot_token, config.telegram_chat_id) {
