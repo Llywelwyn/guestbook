@@ -29,8 +29,8 @@ async fn main() {
             let notify_bot = bot.clone();
             tokio::spawn(telegram::notification_task(notify_bot, chat_id, rx));
 
-            let cmd_entries_dir = entries_dir.clone();
-            tokio::spawn(telegram::bot_task(bot, chat_id, cmd_entries_dir));
+            let cmd_data_dir = config.data_dir.clone();
+            tokio::spawn(telegram::bot_task(bot, chat_id, cmd_data_dir));
         }
         _ => {
             tracing::info!("telegram not configured, moderation notifications disabled");

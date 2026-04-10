@@ -41,14 +41,16 @@ pub async fn notification_task(bot: Bot, chat_id: ChatId, mut rx: Receiver<(Entr
 }
 
 /// Run the Telegram bot that listens for /allow_ and /deny_ commands.
-pub async fn bot_task(bot: Bot, chat_id: ChatId, entries_dir: PathBuf) {
+pub async fn bot_task(bot: Bot, chat_id: ChatId, data_dir: PathBuf) {
     let handler = Update::filter_message().endpoint(
-        |bot: Bot, msg: Message, entries_dir: PathBuf, chat_id: ChatId| async move {
+        |bot: Bot, msg: Message, data_dir: PathBuf, chat_id: ChatId| async move {
             let text = msg.text().unwrap_or("");
             // Only respond to the configured chat
             if msg.chat.id != chat_id {
                 return respond(());
             }
+
+            let entries_dir = data_dir.join("entries");
 
             if let Some(id) = text.strip_prefix("/allow_") {
                 match entries::set_status(&entries_dir, id, Status::Approved) {
@@ -77,7 +79,7 @@ pub async fn bot_task(bot: Bot, chat_id: ChatId, entries_dir: PathBuf) {
     );
 
     Dispatcher::builder(bot, handler)
-        .dependencies(dptree::deps![entries_dir, chat_id])
+        .dependencies(dptree::deps![data_dir, chat_id])
         .build()
         .dispatch()
         .await;
