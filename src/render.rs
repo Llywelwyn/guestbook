@@ -109,6 +109,70 @@ pub fn render_form(config: &Config) -> String {
         String::new()
     };
 
+    let voice_note_section = if config.enable_voice_notes {
+        format!(
+            r##"<span class="guestbook-voice-wrap"><span class="guestbook-voice-inline"><a href="#" class="guestbook-voice-record">add a voice note</a> <span class="guestbook-voice-timer"></span></span><span class="guestbook-voice-playback"></span></span><input type="hidden" name="voice_note"><script>(function(){{
+  var maxDur={max_dur};
+  var inl=document.querySelector('.guestbook-voice-inline'),
+      pb=document.querySelector('.guestbook-voice-playback'),
+      hid=document.querySelector('[name=voice_note]'),
+      rec=null,chunks=[],iv=null,st=0;
+  function fmt(s){{var m=Math.floor(s/60),sec=s%60;return m+':'+(sec<10?'0':'')+sec}}
+  function setInit(){{
+    if(rec&&rec.state==='recording'){{rec.stop();rec.stream.getTracks().forEach(function(t){{t.stop()}})}}
+    rec=null;chunks=[];clearInterval(iv);iv=null;pb.innerHTML='';hid.value='';
+    inl.innerHTML='';
+    var a=document.createElement('a');a.href='#';a.textContent='add a voice note';
+    a.addEventListener('click',function(e){{e.preventDefault();startRec()}});
+    inl.appendChild(a);
+  }}
+  function setRec(){{
+    inl.innerHTML='';
+    var a=document.createElement('a');a.href='#';a.className='guestbook-voice-record recording';
+    a.textContent='stop recording';
+    a.addEventListener('click',function(e){{e.preventDefault();rec.stop();rec.stream.getTracks().forEach(function(t){{t.stop()}})}});
+    inl.appendChild(a);inl.appendChild(document.createTextNode(' '));
+    var t=document.createElement('span');t.className='guestbook-voice-timer';inl.appendChild(t);
+    st=Date.now();t.textContent=fmt(0)+' / '+fmt(maxDur);
+    iv=setInterval(function(){{
+      var el=Math.floor((Date.now()-st)/1000);t.textContent=fmt(el)+' / '+fmt(maxDur);
+      if(el>=maxDur){{rec.stop();rec.stream.getTracks().forEach(function(t){{t.stop()}})}}
+    }},250);
+  }}
+  function setResult(){{
+    clearInterval(iv);iv=null;
+    var blob=new Blob(chunks,{{type:'audio/webm;codecs=opus'}});
+    inl.innerHTML='';
+    var re=document.createElement('a');re.href='#';re.textContent='re-record';
+    re.addEventListener('click',function(e){{e.preventDefault();setInit();startRec()}});
+    var disc=document.createElement('a');disc.href='#';disc.textContent='discard';
+    disc.addEventListener('click',function(e){{e.preventDefault();setInit()}});
+    inl.appendChild(re);inl.appendChild(document.createTextNode(' | '));inl.appendChild(disc);
+    var url=URL.createObjectURL(blob);
+    var au=document.createElement('audio');au.controls=true;au.preload='metadata';au.src=url;
+    pb.innerHTML='';pb.appendChild(au);
+    var rd=new FileReader();rd.onload=function(){{hid.value=rd.result}};rd.readAsDataURL(blob);
+  }}
+  function startRec(){{
+    chunks=[];hid.value='';pb.innerHTML='';
+    navigator.mediaDevices.getUserMedia({{audio:true}}).then(function(stream){{
+      rec=new MediaRecorder(stream,{{mimeType:'audio/webm;codecs=opus'}});
+      rec.ondataavailable=function(e){{if(e.data.size>0)chunks.push(e.data)}};
+      rec.onstop=function(){{setResult()}};
+      rec.start();setRec();
+    }}).catch(function(){{
+      inl.querySelector('a').textContent='add a voice note';
+      inl.appendChild(document.createTextNode(' (mic denied)'));
+    }});
+  }}
+  inl.querySelector('a').addEventListener('click',function(e){{e.preventDefault();startRec()}});
+}})();</script>"##,
+            max_dur = config.voice_note_max_duration,
+        )
+    } else {
+        String::new()
+    };
+
     format!(
         r#"<span class="guestbook-prompt">{prompt}</span>
 <form class="guestbook-form" method="post" action="/submit" accept-charset="UTF-8">
@@ -118,7 +182,7 @@ pub fn render_form(config: &Config) -> String {
 <label class="guestbook-label">{label_message}</label>
 <textarea class="guestbook-textarea" name="message" style="width:{tw}px;height:{th}px" required></textarea>
 {captcha_section}
-{drawing_section}<input name="url" style="display:none" tabindex="-1" autocomplete="off"><button class="guestbook-button" type="submit">{button}</button>
+{drawing_section}{voice_note_section}<input name="url" style="display:none" tabindex="-1" autocomplete="off"><button class="guestbook-button" type="submit">{button}</button>
 </form>"#,
         prompt = config.form_prompt,
         label_name = config.label_name,
@@ -128,6 +192,7 @@ pub fn render_form(config: &Config) -> String {
         th = config.textarea_height,
         captcha_section = captcha_section,
         drawing_section = drawing_section,
+        voice_note_section = voice_note_section,
         button = config.button_text,
     )
 }
@@ -526,5 +591,23 @@ mod tests {
         assert!(html.contains("Name and message are required."));
         assert!(html.contains("back"));
         assert!(html.contains("<style>"));
+    }
+
+    #[test]
+    fn test_render_form_shows_voice_note_when_enabled() {
+        let mut config = test_config();
+        config.enable_voice_notes = true;
+        let form = render_form(&config);
+        assert!(form.contains("add a voice note"));
+        assert!(form.contains("guestbook-voice-record"));
+        assert!(form.contains("name=\"voice_note\""));
+    }
+
+    #[test]
+    fn test_render_form_hides_voice_note_when_disabled() {
+        let config = test_config();
+        let form = render_form(&config);
+        assert!(!form.contains("add a voice note"));
+        assert!(!form.contains("name=\"voice_note\""));
     }
 }
