@@ -280,8 +280,9 @@ fn render_entry(entry: &Entry, config: &Config) -> String {
     };
     let drawing_html = if !entry.meta.drawing.is_empty() {
         format!(
-            "<img class=\"entry-drawing\" src=\"/drawings/{}\">",
-            escape_html(&entry.meta.drawing)
+            "<img class=\"entry-drawing\" src=\"/drawings/{}\" alt=\"Drawing by {}\">",
+            escape_html(&entry.meta.drawing),
+            escape_html(&entry.meta.name)
         )
     } else {
         String::new()
@@ -545,7 +546,7 @@ mod tests {
         entry.meta.drawing = "2026-04-09-abc123.png".into();
         let form = render_form(&config);
         let html = render_page(DEFAULT_TEMPLATE, &config, &[entry], &form);
-        assert!(html.contains(r#"<img class="entry-drawing" src="/drawings/2026-04-09-abc123.png">"#));
+        assert!(html.contains(r#"<img class="entry-drawing" src="/drawings/2026-04-09-abc123.png" alt="Drawing by alice">"#));
     }
 
     #[test]
@@ -557,7 +558,7 @@ mod tests {
         let form = render_form(&config);
         let html = render_page(DEFAULT_TEMPLATE, &config, &[entry], &form);
         // Drawing renders regardless
-        assert!(html.contains(r#"<img class="entry-drawing" src="/drawings/2026-04-09-abc123.png">"#));
+        assert!(html.contains(r#"<img class="entry-drawing" src="/drawings/2026-04-09-abc123.png" alt="Drawing by alice">"#));
         // But body HTML is escaped
         assert!(html.contains("&lt;script&gt;"));
     }
