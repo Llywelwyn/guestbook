@@ -138,7 +138,23 @@ pub fn delete_entry(data_dir: &Path, short_id: &str) -> Result<String, String> {
 }
 
 #[cfg(any(feature = "telegram", test))]
-/// Find an entry file by short ID prefix and update its status.
+/// Append a reply to an entry's body, prefixed with ">> " on each line.
+pub fn append_reply(dir: &Path, id: &str, reply: &str) -> Result<String, String> {
+    let mut entry = find_entry(dir, id)?;
+    let quoted: String = reply
+        .lines()
+        .map(|line| format!(">>  {line}"))
+        .collect::<Vec<_>>()
+        .join("\n");
+    entry.body.push_str("\n\n");
+    entry.body.push_str(&quoted);
+    let path = dir.join(format!("{}.txt", entry.id));
+    std::fs::write(&path, entry.to_file_contents()).map_err(|e| e.to_string())?;
+    Ok(entry.meta.name.clone())
+}
+
+#[cfg(any(feature = "telegram", test))]
+/// Find an entry file by ID and update its status.
 pub fn set_status(dir: &Path, short_id: &str, status: Status) -> Result<String, String> {
     let mut entry = find_entry(dir, short_id)?;
     entry.meta.status = status;
@@ -356,4 +372,24 @@ Hello!"#;
         assert!(delete_entry(dir.path(), "nonexistent").is_err());
     }
 
+    #[test]
+    fn test_append_reply() {
+        let dir = tempfile::tempdir().unwrap();
+        let contents = "+++\nname = \"alice\"\ndate = \"2026-04-10\"\nstatus = \"approved\"\n+++\nDid you drink water today?";
+        std::fs::write(dir.path().join("ab12.txt"), contents).unwrap();
+
+        let name = append_reply(dir.path(), "ab12", "Not enough! Thanks for\nthe note.").unwrap();
+        assert_eq!(name, "alice");
+
+        let entry = find_entry(dir.path(), "ab12").unwrap();
+        assert!(entry.body.contains("Did you drink water today?"));
+        assert!(entry.body.contains(">>  Not enough! Thanks for"));
+        assert!(entry.body.contains(">>  the note."));
+    }
+
+    #[test]
+    fn test_append_reply_not_found() {
+        let dir = tempfile::tempdir().unwrap();
+        assert!(append_reply(dir.path(), "nonexistent", "hello").is_err());
+    }
 }

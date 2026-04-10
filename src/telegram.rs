@@ -141,6 +141,28 @@ pub async fn bot_task(bot: Bot, chat_id: ChatId, data_dir: PathBuf) {
                         bot.send_message(msg.chat.id, e).await?;
                     }
                 }
+            } else if let Some(rest) = text.strip_prefix("/reply_") {
+                let (id, reply) = match rest.split_once('\n') {
+                    Some((id, reply)) => (id.trim(), reply),
+                    None => {
+                        bot.send_message(msg.chat.id, "Usage: /reply_ID\\nYour reply text")
+                            .await?;
+                        return respond(());
+                    }
+                };
+                if reply.trim().is_empty() {
+                    bot.send_message(msg.chat.id, "Reply text is empty.").await?;
+                    return respond(());
+                }
+                match entries::append_reply(&entries_dir, id, reply) {
+                    Ok(name) => {
+                        bot.send_message(msg.chat.id, format!("Reply added to {name}'s entry."))
+                            .await?;
+                    }
+                    Err(e) => {
+                        bot.send_message(msg.chat.id, e).await?;
+                    }
+                }
             } else if let Some(id) = text.strip_prefix("/delete_") {
                 match entries::delete_entry(&data_dir, id) {
                     Ok(name) => {
