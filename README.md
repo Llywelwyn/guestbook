@@ -60,7 +60,7 @@ This will run the site on localhost on the port you've configured, or `8123` by 
             enable = true;
             package = guestbook.packages.x86_64-linux.default;
             siteTitle = "my guestbook";
-            telegram = {
+            features.telegram = {
               enable = true;
               botTokenFile = "/run/secrets/guestbook-bot-token";
               chatId = 12345;
@@ -177,6 +177,11 @@ Running `guestbook` with no env vars will give you a working guestbook on `local
 # Custom HTML template file with {{title}}, {{form}}, {{entries}}, and {{style}} placeholders.
 # Uses built-in default if unset.
 # BOOK_TEMPLATE=./templates/default.html
+
+# Custom success page template shown after a successful submission.
+# Supports {{title}} and {{style}} placeholders. Use <script> for dynamic behavior.
+# Uses built-in templates/success.html if unset.
+# BOOK_SUCCESS_TEMPLATE=./templates/success.html
 ```
 
 #### NixOS Module
@@ -205,6 +210,11 @@ services.guestbook = {
       canvasWidth = 400;
       canvasHeight = 200;
     };
+    telegram = {
+      enable = false;
+      # botTokenFile = <path>;  -- required when enabled
+      # chatId = <int>;         -- required when enabled
+    };
     security = {
       htmlInjection.enable = false;
       honeypot.enable = true;
@@ -218,12 +228,6 @@ services.guestbook = {
     };
   };
 
-  telegram = {
-    enable = false;
-    # botTokenFile = <path>;  -- required when enabled
-    # chatId = <int>;         -- required when enabled
-  };
-
   limits = {
     name = 0;
     message = 0;
@@ -234,6 +238,7 @@ services.guestbook = {
     css = "";
     cssFile = null;
     templateFile = null;
+    successTemplateFile = null;
     separator = "------------------------------------------------------------";
     greeting = "Thanks for visiting. Sign the guestbook!";
     labels = {
@@ -339,6 +344,12 @@ entries
 </body>
 </html>
 ```
+
+#### Success Page
+
+After a successful submission, visitors see a success page. The default is built into the binary from `templates/success.html`. To customise it, copy the file and point `BOOK_SUCCESS_TEMPLATE` at your copy. The `{{title}}` and `{{style}}` placeholders work the same as in the main template. Use `<script>` for dynamic behavior like showing the current time.
+
+Validation errors (empty fields, wrong captcha, etc.) show a simple error page with the error message and a back link. This page is not customisable.
 
 #### Default CSS
 

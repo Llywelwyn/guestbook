@@ -26,6 +26,7 @@ pub struct Config {
     pub canvas_width: u32,
     pub canvas_height: u32,
     pub template: Option<String>,
+    pub success_template: Option<String>,
     pub separator: String,
     pub style: String,
     pub form_prompt: String,
@@ -119,6 +120,10 @@ impl Config {
             template: env::var("BOOK_TEMPLATE").ok().map(|path| {
                 std::fs::read_to_string(&path)
                     .unwrap_or_else(|e| panic!("failed to read template {path}: {e}"))
+            }),
+            success_template: env::var("BOOK_SUCCESS_TEMPLATE").ok().map(|path| {
+                std::fs::read_to_string(&path)
+                    .unwrap_or_else(|e| panic!("failed to read success template {path}: {e}"))
             }),
             style: env::var("BOOK_STYLE_FILE")
                 .ok()
@@ -279,5 +284,16 @@ mod tests {
         assert_eq!(config.canvas_height, 200);
         assert_eq!(config.max_drawing_bytes(), 400 * 200 * 4);
         assert_eq!(config.label_drawing, "Draw (optional):");
+    }
+
+    #[test]
+    fn test_success_template_default() {
+        let _lock = ENV_LOCK.lock().unwrap();
+        env::remove_var("BOOK_SUCCESS_TEMPLATE");
+        env::remove_var("BOOK_TELEGRAM_BOT_TOKEN");
+        env::remove_var("BOOK_TELEGRAM_CHAT_ID");
+
+        let config = Config::from_env().unwrap();
+        assert!(config.success_template.is_none());
     }
 }

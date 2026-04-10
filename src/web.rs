@@ -14,7 +14,7 @@ use uuid::Uuid;
 
 use crate::config::Config;
 use crate::entries::{self, Entry, EntryMeta, Status};
-use crate::render::{self, DEFAULT_TEMPLATE};
+use crate::render::{self, DEFAULT_TEMPLATE, render_error_page, render_success_page};
 
 pub struct AppState {
     pub config: Config,
@@ -95,12 +95,12 @@ async fn submit(
     Form(form): Form<SubmitForm>,
 ) -> Html<String> {
     if !state.config.enable_submissions {
-        return Html("Submissions are closed.".to_string());
+        return Html(render_error_page(&state.config, "Submissions are closed."));
     }
 
     // Honeypot check — silently discard
     if state.config.enable_honeypot && !form.url.is_empty() {
-        return Html("Thanks! Your message is pending approval.".to_string());
+        return Html(render_success_page(&state.config));
     }
 
     // Validation
@@ -132,24 +132,24 @@ async fn submit(
             }
         };
         if !ok {
-            return Html("Wrong answer.".to_string());
+            return Html(render_error_page(&state.config, "Wrong answer."));
         }
     }
 
     if name.is_empty() || message.is_empty() {
-        return Html("Name and message are required.".to_string());
+        return Html(render_error_page(&state.config, "Name and message are required."));
     }
     let max_name = state.config.max_name_length;
     if max_name > 0 && name.len() > max_name {
-        return Html(format!("Name is too long (max {max_name} chars)."));
+        return Html(render_error_page(&state.config, &format!("Name is too long (max {max_name} chars).")));
     }
     let max_web = state.config.max_website_length;
     if max_web > 0 && website.len() > max_web {
-        return Html(format!("Website is too long (max {max_web} chars)."));
+        return Html(render_error_page(&state.config, &format!("Website is too long (max {max_web} chars).")));
     }
     let max_msg = state.config.max_message_length;
     if max_msg > 0 && message.len() > max_msg {
-        return Html(format!("Message is too long (max {max_msg} chars)."));
+        return Html(render_error_page(&state.config, &format!("Message is too long (max {max_msg} chars).")));
     }
 
     // Process drawing if enabled and provided
@@ -162,21 +162,21 @@ async fn submit(
         } else {
             let bytes = match base64::engine::general_purpose::STANDARD.decode(b64) {
                 Ok(b) => b,
-                Err(_) => return Html("Invalid drawing data.".to_string()),
+                Err(_) => return Html(render_error_page(&state.config, "Invalid drawing data.")),
             };
             let max = state.config.max_drawing_bytes();
             if max > 0 && bytes.len() > max {
-                return Html(format!("Drawing is too large (max {} bytes).", max));
+                return Html(render_error_page(&state.config, &format!("Drawing is too large (max {} bytes).", max)));
             }
 
             // Validate PNG: magic bytes + IHDR dimensions match configured canvas
             if bytes.len() < 24 || &bytes[..8] != b"\x89PNG\r\n\x1a\n" {
-                return Html("Invalid drawing format.".to_string());
+                return Html(render_error_page(&state.config, "Invalid drawing format."));
             }
             let width = u32::from_be_bytes([bytes[16], bytes[17], bytes[18], bytes[19]]);
             let height = u32::from_be_bytes([bytes[20], bytes[21], bytes[22], bytes[23]]);
             if width != state.config.canvas_width || height != state.config.canvas_height {
-                return Html("Invalid drawing dimensions.".to_string());
+                return Html(render_error_page(&state.config, "Invalid drawing dimensions."));
             }
 
             Some(bytes)
@@ -199,7 +199,7 @@ async fn submit(
         std::fs::create_dir_all(&drawings_dir).ok();
         if let Err(e) = std::fs::write(drawings_dir.join(&drawing_name), bytes) {
             tracing::error!("failed to write drawing: {e}");
-            return Html("Something went wrong. Please try again.".to_string());
+            return Html(render_error_page(&state.config, "Something went wrong. Please try again."));
         }
         drawing_name
     } else {
@@ -223,13 +223,13 @@ async fn submit(
     let path = entries_dir.join(&filename);
     if let Err(e) = std::fs::write(&path, entry.to_file_contents()) {
         tracing::error!("failed to write entry: {e}");
-        return Html("Something went wrong. Please try again.".to_string());
+        return Html(render_error_page(&state.config, "Something went wrong. Please try again."));
     }
 
     // Notify telegram task
     let _ = state.tx.send((entry, drawing_bytes)).await;
 
-    Html("Thanks! Your message is pending approval.".to_string())
+    Html(render_success_page(&state.config))
 }
 
 #[cfg(test)]
@@ -266,6 +266,7 @@ mod tests {
             canvas_width: 400,
             canvas_height: 200,
             template: None,
+            success_template: None,
             separator: "---".into(),
             style: String::new(),
             form_prompt: "Thanks for visiting. Sign the guestbook!".into(),
@@ -783,5 +784,38 @@ mod tests {
         let (status, bytes) = get_path(&app, &format!("/drawings/{drawing_filename}")).await;
         assert_eq!(status, StatusCode::OK);
         assert_eq!(bytes, png);
+    }
+
+    #[tokio::test]
+    async fn test_submit_success_is_full_page() {
+        let dir = tempfile::tempdir().unwrap();
+        let config = test_config(dir.path());
+        let (app, _rx) = test_app(config);
+        let (_, body) = post_form(&app, "name=alice&message=hello").await;
+        assert!(body.contains("<!DOCTYPE html>"));
+        assert!(body.contains("<title>test</title>"));
+        assert!(body.contains("pending approval"));
+        assert!(body.contains("back"));
+    }
+
+    #[tokio::test]
+    async fn test_submit_custom_success_template() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut config = test_config(dir.path());
+        config.success_template = Some("<p>{{title}} — sent!</p>".into());
+        let (app, _rx) = test_app(config);
+        let (_, body) = post_form(&app, "name=alice&message=hello").await;
+        assert_eq!(body, "<p>test — sent!</p>");
+    }
+
+    #[tokio::test]
+    async fn test_submit_error_is_full_page() {
+        let dir = tempfile::tempdir().unwrap();
+        let config = test_config(dir.path());
+        let (app, _rx) = test_app(config);
+        let (_, body) = post_form(&app, "name=&message=").await;
+        assert!(body.contains("<!DOCTYPE html>"));
+        assert!(body.contains("Name and message are required"));
+        assert!(body.contains("back"));
     }
 }

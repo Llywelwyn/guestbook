@@ -2,6 +2,7 @@ use crate::config::Config;
 use crate::entries::Entry;
 
 pub const DEFAULT_TEMPLATE: &str = include_str!("../templates/default.html");
+pub const DEFAULT_SUCCESS_TEMPLATE: &str = include_str!("../templates/success.html");
 pub const DEFAULT_STYLE: &str = include_str!("../templates/default.css");
 
 pub fn render_page(template: &str, config: &Config, entries: &[Entry], form_html: &str) -> String {
@@ -111,6 +112,48 @@ pub fn render_form(config: &Config) -> String {
     )
 }
 
+pub fn render_success_page(config: &Config) -> String {
+    let template = config.success_template.as_deref().unwrap_or(DEFAULT_SUCCESS_TEMPLATE);
+    let css = if config.style.is_empty() {
+        DEFAULT_STYLE
+    } else {
+        &config.style
+    };
+    let style = format!("<style>\n{css}\n  </style>");
+    template
+        .replace("{{title}}", &config.site_title)
+        .replace("{{style}}", &style)
+}
+
+pub fn render_error_page(config: &Config, error: &str) -> String {
+    let css = if config.style.is_empty() {
+        DEFAULT_STYLE
+    } else {
+        &config.style
+    };
+    format!(
+        r#"<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{title}</title>
+  <style>
+{css}
+  </style>
+</head>
+<body>
+<div class="page-container">
+{error}
+
+<a href="/">&#8592; back</a>
+</div>
+</body>
+</html>"#,
+        title = config.site_title,
+    )
+}
+
 fn escape_html(s: &str) -> String {
     s.replace('&', "&amp;")
         .replace('<', "&lt;")
@@ -195,6 +238,7 @@ mod tests {
             canvas_width: 400,
             canvas_height: 200,
             template: None,
+            success_template: None,
             separator: "---".into(),
             style: String::new(),
             form_prompt: "Thanks for visiting. Sign the guestbook!".into(),
@@ -431,5 +475,33 @@ mod tests {
         let form = render_form(&config);
         let html = render_page(DEFAULT_TEMPLATE, &config, &[entry], &form);
         assert!(!html.contains("<img class=\"entry-drawing\""));
+    }
+
+    #[test]
+    fn test_render_success_page_default() {
+        let config = test_config();
+        let html = render_success_page(&config);
+        assert!(html.contains("<title>test</title>"));
+        assert!(html.contains("pending approval"));
+        assert!(html.contains("back"));
+        assert!(html.contains("<style>"));
+    }
+
+    #[test]
+    fn test_render_success_page_custom_template() {
+        let mut config = test_config();
+        config.success_template = Some("<p>{{title}} - sent!</p>".into());
+        let html = render_success_page(&config);
+        assert_eq!(html, "<p>test - sent!</p>");
+    }
+
+    #[test]
+    fn test_render_error_page() {
+        let config = test_config();
+        let html = render_error_page(&config, "Name and message are required.");
+        assert!(html.contains("<title>test</title>"));
+        assert!(html.contains("Name and message are required."));
+        assert!(html.contains("back"));
+        assert!(html.contains("<style>"));
     }
 }

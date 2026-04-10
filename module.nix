@@ -94,6 +94,20 @@ in
         };
       };
 
+      telegram = {
+        enable = mkEnableOption "Telegram moderation notifications";
+
+        botTokenFile = mkOption {
+          type = types.path;
+          description = "Path to a file containing the Telegram bot token.";
+        };
+
+        chatId = mkOption {
+          type = types.int;
+          description = "Telegram chat ID for moderation messages.";
+        };
+      };
+
       security = {
         htmlInjection = {
           enable = mkOption {
@@ -141,20 +155,6 @@ in
       };
     };
 
-    telegram = {
-      enable = mkEnableOption "Telegram moderation notifications";
-
-      botTokenFile = mkOption {
-        type = types.path;
-        description = "Path to a file containing the Telegram bot token.";
-      };
-
-      chatId = mkOption {
-        type = types.int;
-        description = "Telegram chat ID for moderation messages.";
-      };
-    };
-
     limits = {
       name = mkOption {
         type = types.int;
@@ -192,6 +192,12 @@ in
         type = types.nullOr types.path;
         default = null;
         description = "Custom HTML template file with {{title}}, {{form}}, {{entries}}, and {{style}} placeholders. Uses built-in default if null.";
+      };
+
+      successTemplateFile = mkOption {
+        type = types.nullOr types.path;
+        default = null;
+        description = "Custom success page template with {{title}} and {{style}} placeholders. Uses built-in default if null.";
       };
 
       separator = mkOption {
@@ -295,8 +301,10 @@ in
           BOOK_STYLE_FILE = cfg.styles.cssFile;
         } // lib.optionalAttrs (cfg.styles.templateFile != null) {
           BOOK_TEMPLATE = cfg.styles.templateFile;
-        } // lib.optionalAttrs cfg.telegram.enable {
-          BOOK_TELEGRAM_CHAT_ID = toString cfg.telegram.chatId;
+        } // lib.optionalAttrs (cfg.styles.successTemplateFile != null) {
+          BOOK_SUCCESS_TEMPLATE = cfg.styles.successTemplateFile;
+        } // lib.optionalAttrs cfg.features.telegram.enable {
+          BOOK_TELEGRAM_CHAT_ID = toString cfg.features.telegram.chatId;
         };
         serviceConfig = {
           Type = "simple";
@@ -310,8 +318,8 @@ in
           ReadWritePaths = [ cfg.dataDir ];
         };
         script = ''
-          ${lib.optionalString cfg.telegram.enable ''
-            export BOOK_TELEGRAM_BOT_TOKEN="$(< "${cfg.telegram.botTokenFile}")"
+          ${lib.optionalString cfg.features.telegram.enable ''
+            export BOOK_TELEGRAM_BOT_TOKEN="$(< "${cfg.features.telegram.botTokenFile}")"
           ''}
           exec ${cfg.package}/bin/guestbook
         '';
