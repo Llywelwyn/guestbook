@@ -114,6 +114,35 @@ pub fn find_entry(dir: &Path, short_id: &str) -> Result<Entry, String> {
     Err("Not found.".into())
 }
 
+/// Delete an entry and its associated media files.
+/// `data_dir` is the parent directory containing entries/, drawings/, and voice_notes/.
+pub fn delete_entry(data_dir: &Path, short_id: &str) -> Result<String, String> {
+    let entries_dir = data_dir.join("entries");
+    let entry = find_entry(&entries_dir, short_id)?;
+
+    // Delete entry file
+    let entry_path = entries_dir.join(format!("{}.txt", entry.id));
+    std::fs::remove_file(&entry_path).map_err(|e| e.to_string())?;
+
+    // Delete drawing if present
+    if !entry.meta.drawing.is_empty() {
+        let drawing_path = data_dir.join("drawings").join(&entry.meta.drawing);
+        if drawing_path.exists() {
+            std::fs::remove_file(&drawing_path).map_err(|e| e.to_string())?;
+        }
+    }
+
+    // Delete voice note if present
+    if !entry.meta.voice_note.is_empty() {
+        let vn_path = data_dir.join("voice_notes").join(&entry.meta.voice_note);
+        if vn_path.exists() {
+            std::fs::remove_file(&vn_path).map_err(|e| e.to_string())?;
+        }
+    }
+
+    Ok(entry.meta.name.clone())
+}
+
 /// Find an entry file by short ID prefix and update its status.
 pub fn set_status(dir: &Path, short_id: &str, status: Status) -> Result<String, String> {
     let mut entry = find_entry(dir, short_id)?;
@@ -301,5 +330,34 @@ Hello!"#;
         assert_eq!(entry.meta.name, "alice");
 
         assert!(find_entry(dir.path(), "nonexistent").is_err());
+    }
+
+    #[test]
+    fn test_delete_entry() {
+        let dir = tempfile::tempdir().unwrap();
+        let entries_dir = dir.path().join("entries");
+        let drawings_dir = dir.path().join("drawings");
+        let vn_dir = dir.path().join("voice_notes");
+        std::fs::create_dir_all(&entries_dir).unwrap();
+        std::fs::create_dir_all(&drawings_dir).unwrap();
+        std::fs::create_dir_all(&vn_dir).unwrap();
+
+        let contents = "+++\nname = \"alice\"\ndate = \"2026-04-10\"\nstatus = \"denied\"\ndrawing = \"1744300800_abcd1234.png\"\nvoice_note = \"1744300800_abcd1234.webm\"\n+++\nhello";
+        std::fs::write(entries_dir.join("1744300800_abcd1234.txt"), contents).unwrap();
+        std::fs::write(drawings_dir.join("1744300800_abcd1234.png"), b"fake png").unwrap();
+        std::fs::write(vn_dir.join("1744300800_abcd1234.webm"), b"fake webm").unwrap();
+
+        let name = delete_entry(dir.path(), "abcd1234").unwrap();
+        assert_eq!(name, "alice");
+        assert!(!entries_dir.join("1744300800_abcd1234.txt").exists());
+        assert!(!drawings_dir.join("1744300800_abcd1234.png").exists());
+        assert!(!vn_dir.join("1744300800_abcd1234.webm").exists());
+    }
+
+    #[test]
+    fn test_delete_entry_not_found() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(dir.path().join("entries")).unwrap();
+        assert!(delete_entry(dir.path(), "nonexistent").is_err());
     }
 }
