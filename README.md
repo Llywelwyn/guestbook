@@ -215,7 +215,12 @@ services.guestbook = {
   caddy = {
     enable = false;
     # domain = <str>;  -- required when enabled
-    forwardAuth = null; # e.g. "localhost:9090"
+    forwardAuth = {
+      enable = false;
+      # address = <str>;  -- required when enabled, e.g. "localhost:9090"
+      uri = "/api/auth";
+      copyHeaders = []; # e.g. [ "Remote-User" "Remote-Email" ]
+    };
   };
 
   features = {
