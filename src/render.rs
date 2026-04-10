@@ -262,6 +262,7 @@ mod tests {
                 date: date.into(),
                 website: String::new(),
                 drawing: String::new(),
+                voice_note: String::new(),
                 status: Status::Approved,
             },
             body: body.into(),

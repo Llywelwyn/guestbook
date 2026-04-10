@@ -212,6 +212,7 @@ async fn submit(
             date,
             website,
             drawing: drawing_filename,
+            voice_note: String::new(),
             status: Status::Pending,
         },
         body: message,

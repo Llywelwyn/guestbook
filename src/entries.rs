@@ -17,6 +17,8 @@ pub struct EntryMeta {
     pub website: String,
     #[serde(default)]
     pub drawing: String,
+    #[serde(default)]
+    pub voice_note: String,
     pub status: Status,
 }
 
@@ -224,5 +226,45 @@ Hello!"#;
         let serialized = entry.to_file_contents();
         let reparsed = Entry::parse("test", &serialized).unwrap();
         assert_eq!(reparsed.meta.drawing, "abc123.png");
+    }
+
+    #[test]
+    fn test_parse_entry_with_voice_note() {
+        let contents = r#"+++
+name = "alice"
+date = "2026-04-10"
+status = "approved"
+voice_note = "1744300800_abcd1234.webm"
++++
+Hello!"#;
+        let entry = Entry::parse("test", contents).unwrap();
+        assert_eq!(entry.meta.voice_note, "1744300800_abcd1234.webm");
+    }
+
+    #[test]
+    fn test_parse_entry_without_voice_note() {
+        let contents = r#"+++
+name = "bob"
+date = "2026-04-10"
+status = "pending"
++++
+Hi!"#;
+        let entry = Entry::parse("test", contents).unwrap();
+        assert_eq!(entry.meta.voice_note, "");
+    }
+
+    #[test]
+    fn test_roundtrip_with_voice_note() {
+        let contents = r#"+++
+name = "alice"
+date = "2026-04-10"
+status = "approved"
+voice_note = "1744300800_abcd1234.webm"
++++
+Hello!"#;
+        let entry = Entry::parse("test", contents).unwrap();
+        let serialized = entry.to_file_contents();
+        let reparsed = Entry::parse("test", &serialized).unwrap();
+        assert_eq!(reparsed.meta.voice_note, "1744300800_abcd1234.webm");
     }
 }
