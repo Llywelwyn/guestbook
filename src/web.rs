@@ -42,6 +42,7 @@ pub fn router(state: Arc<AppState>) -> Router {
         .route("/", get(index))
         .route("/submit", post(submit))
         .route("/drawings/{filename}", get(serve_drawing))
+        .route("/voice_notes/{filename}", get(serve_voice_note))
         .layer(DefaultBodyLimit::max(2 * 1024 * 1024))
         .with_state(state)
 }
@@ -83,6 +84,33 @@ async fn serve_drawing(
             StatusCode::OK,
             [
                 (header::CONTENT_TYPE, "image/png"),
+                (header::X_CONTENT_TYPE_OPTIONS, "nosniff"),
+            ],
+            bytes,
+        )
+            .into_response(),
+        Err(_) => StatusCode::NOT_FOUND.into_response(),
+    }
+}
+
+async fn serve_voice_note(
+    State(state): State<Arc<AppState>>,
+    AxumPath(filename): AxumPath<String>,
+) -> Response {
+    if !filename.ends_with(".webm")
+        || !filename[..filename.len() - 5]
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
+    {
+        return StatusCode::NOT_FOUND.into_response();
+    }
+
+    let path = state.config.data_dir.join("voice_notes").join(&filename);
+    match std::fs::read(&path) {
+        Ok(bytes) => (
+            StatusCode::OK,
+            [
+                (header::CONTENT_TYPE, "audio/webm"),
                 (header::X_CONTENT_TYPE_OPTIONS, "nosniff"),
             ],
             bytes,
@@ -978,5 +1006,41 @@ mod tests {
             .collect();
         let content = std::fs::read_to_string(entries[0].as_ref().unwrap().path()).unwrap();
         assert!(content.contains("voice_note = \"\""));
+    }
+
+    #[tokio::test]
+    async fn test_serve_voice_note() {
+        let dir = tempfile::tempdir().unwrap();
+        let config = test_config(dir.path());
+        let (app, _rx) = test_app(config);
+
+        let vn_dir = dir.path().join("voice_notes");
+        std::fs::create_dir_all(&vn_dir).unwrap();
+        let webm_bytes = b"\x1a\x45\xdf\xa3fake";
+        std::fs::write(vn_dir.join("test123.webm"), webm_bytes).unwrap();
+
+        let (status, body) = get_path(&app, "/voice_notes/test123.webm").await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(body, webm_bytes);
+    }
+
+    #[tokio::test]
+    async fn test_serve_voice_note_not_found() {
+        let dir = tempfile::tempdir().unwrap();
+        let config = test_config(dir.path());
+        let (app, _rx) = test_app(config);
+
+        let (status, _) = get_path(&app, "/voice_notes/nonexistent.webm").await;
+        assert_eq!(status, StatusCode::NOT_FOUND);
+    }
+
+    #[tokio::test]
+    async fn test_serve_voice_note_rejects_path_traversal() {
+        let dir = tempfile::tempdir().unwrap();
+        let config = test_config(dir.path());
+        let (app, _rx) = test_app(config);
+
+        let (status, _) = get_path(&app, "/voice_notes/../entries/secret.txt").await;
+        assert_eq!(status, StatusCode::NOT_FOUND);
     }
 }
