@@ -15,7 +15,7 @@ fn format_entry_list(entries: &[Entry], status_label: &str) -> String {
         let ellipsis = if entry.body.chars().count() > 30 { "..." } else { "" };
         lines.push(format!(
             "- {} ({}) \"{}{}\"\n  /view_{}",
-            entry.meta.name, entry.meta.date, preview, ellipsis, entry.short_id()
+            entry.meta.name, entry.meta.date, preview, ellipsis, entry.id
         ));
     }
     lines.join("\n")
@@ -23,10 +23,9 @@ fn format_entry_list(entries: &[Entry], status_label: &str) -> String {
 
 /// Send a notification to Telegram about a new entry.
 async fn notify(bot: &Bot, chat_id: ChatId, entry: &Entry) {
-    let short_id = entry.short_id();
     let text = format!(
         "New guestbook entry:\n\nName: {}\nWebsite: {}\n\n{}\n\n/allow_{}\n/deny_{}",
-        entry.meta.name, entry.meta.website, entry.body, short_id, short_id
+        entry.meta.name, entry.meta.website, entry.body, entry.id, entry.id
     );
     if let Err(e) = bot.send_message(chat_id, &text).await {
         tracing::error!("failed to send telegram message: {e}");
@@ -109,11 +108,10 @@ pub async fn bot_task(bot: Bot, chat_id: ChatId, data_dir: PathBuf) {
             } else if let Some(id) = text.strip_prefix("/view_") {
                 match entries::find_entry(&entries_dir, id) {
                     Ok(entry) => {
-                        let short_id = entry.short_id();
                         let text = format!(
                             "Entry ({:?}):\n\nName: {}\nWebsite: {}\nDate: {}\n\n{}\n\n/allow_{}\n/deny_{}",
                             entry.meta.status, entry.meta.name, entry.meta.website,
-                            entry.meta.date, entry.body, short_id, short_id
+                            entry.meta.date, entry.body, entry.id, entry.id
                         );
                         bot.send_message(msg.chat.id, &text).await?;
 

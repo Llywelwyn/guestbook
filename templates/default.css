@@ -108,11 +108,6 @@ audio {
 /* Entries */
 .entry {
   margin: 0.5em 0;
-  padding-bottom: 0.5em;
-  border-bottom: 1px solid #ccc;
-}
-.entry:last-child {
-  border-bottom: none;
 }
 .entry-header {
   margin-bottom: 0.2em;

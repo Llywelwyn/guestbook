@@ -11,7 +11,7 @@ use axum::{
 use base64::Engine;
 use serde::Deserialize;
 use std::sync::Arc;
-use uuid::Uuid;
+use rand::Rng;
 
 use crate::config::Config;
 use crate::entries::{self, Entry, EntryMeta, Status};
@@ -47,6 +47,17 @@ pub fn router(state: Arc<AppState>) -> Router {
         .layer(DefaultBodyLimit::max(2 * 1024 * 1024))
         .layer(middleware::from_fn(security_headers))
         .with_state(state)
+}
+
+fn generate_id(entries_dir: &std::path::Path) -> String {
+    const CHARS: &[u8] = b"0123456789abcdefghijklmnopqrstuvwxyz";
+    let mut rng = rand::rng();
+    loop {
+        let id: String = (0..4).map(|_| CHARS[rng.random_range(0..36)] as char).collect();
+        if !entries_dir.join(format!("{id}.txt")).exists() {
+            return id;
+        }
+    }
 }
 
 async fn security_headers(req: axum::extract::Request, next: Next) -> Response {
@@ -260,15 +271,13 @@ async fn submit(
     };
 
     let now = chrono::Utc::now();
-    let epoch = now.timestamp();
-    let short_id = &Uuid::new_v4().to_string()[..8];
-    let prefix = format!("{epoch}_{short_id}");
     let date = now.format("%Y-%m-%dT%H:%M:%S").to_string();
-    let filename = format!("{prefix}.txt");
+    let id = generate_id(&state.config.data_dir.join("entries"));
+    let filename = format!("{id}.txt");
 
-    // Save drawing with the same prefix as the entry
+    // Save drawing with the same ID as the entry
     let drawing_filename = if let Some(ref bytes) = drawing_bytes {
-        let drawing_name = format!("{prefix}.png");
+        let drawing_name = format!("{id}.png");
         let drawings_dir = state.config.data_dir.join("drawings");
         if let Err(e) = std::fs::create_dir_all(&drawings_dir) {
             tracing::error!("failed to create drawings directory: {e}");
@@ -284,7 +293,7 @@ async fn submit(
     };
 
     let voice_note_filename = if let Some(ref bytes) = voice_note_bytes {
-        let vn_name = format!("{prefix}.webm");
+        let vn_name = format!("{id}.webm");
         let vn_dir = state.config.data_dir.join("voice_notes");
         if let Err(e) = std::fs::create_dir_all(&vn_dir) {
             tracing::error!("failed to create voice notes directory: {e}");

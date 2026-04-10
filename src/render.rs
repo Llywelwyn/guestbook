@@ -257,7 +257,10 @@ fn escape_html(s: &str) -> String {
 
 fn render_entries(entries: &[Entry], config: &Config) -> String {
     let mut html = String::new();
-    for entry in entries {
+    for (i, entry) in entries.iter().enumerate() {
+        if i > 0 {
+            html.push_str("<hr class=\"entry-separator\">");
+        }
         html.push_str(&render_entry(entry, config));
     }
     html
@@ -304,7 +307,8 @@ fn render_entry(entry: &Entry, config: &Config) -> String {
         String::new()
     };
     format!(
-        "<article class=\"entry\">{header}{drawing_html}{voice_note_html}<div class=\"entry-body\">{body}</div></article>"
+        "<article class=\"entry\" id=\"{id}\">{header}{drawing_html}{voice_note_html}<div class=\"entry-body\">{body}</div></article>",
+        id = escape_html(&entry.id)
     )
 }
 
@@ -397,7 +401,7 @@ mod tests {
         assert!(html.contains("entry-header"));
         assert!(html.contains("entry-name"));
         assert!(html.contains("entry-body"));
-        assert!(html.contains("<article class=\"entry\">"));
+        assert!(html.contains("<article class=\"entry\" id=\"test\">"));
     }
 
     #[test]

@@ -50,12 +50,6 @@ impl Entry {
         })
     }
 
-    #[cfg(any(feature = "telegram", test))]
-    /// Return the short ID (UUID portion after the underscore).
-    pub fn short_id(&self) -> &str {
-        self.id.split('_').last().unwrap_or(&self.id)
-    }
-
     /// Serialize entry back to file format.
     pub fn to_file_contents(&self) -> String {
         let frontmatter = toml::to_string_pretty(&self.meta).unwrap();
@@ -106,20 +100,11 @@ pub fn read_approved(dir: &Path) -> Vec<Entry> {
 }
 
 #[cfg(any(feature = "telegram", test))]
-/// Find a single entry by short ID (the UUID portion after the underscore).
-pub fn find_entry(dir: &Path, short_id: &str) -> Result<Entry, String> {
-    let read_dir = std::fs::read_dir(dir).map_err(|e| e.to_string())?;
-    for item in read_dir {
-        let Ok(item) = item else { continue };
-        let path = item.path();
-        let fname = path.file_name().and_then(|s| s.to_str()).unwrap_or("");
-        if fname.contains(short_id) && fname.ends_with(".txt") {
-            let contents = std::fs::read_to_string(&path).map_err(|e| e.to_string())?;
-            let id = path.file_stem().and_then(|s| s.to_str()).unwrap_or("").to_string();
-            return Entry::parse(&id, &contents);
-        }
-    }
-    Err("Not found.".into())
+/// Find a single entry by ID.
+pub fn find_entry(dir: &Path, id: &str) -> Result<Entry, String> {
+    let path = dir.join(format!("{id}.txt"));
+    let contents = std::fs::read_to_string(&path).map_err(|_| "Not found.".to_string())?;
+    Entry::parse(id, &contents)
 }
 
 #[cfg(any(feature = "telegram", test))]
@@ -334,9 +319,9 @@ Hello!"#;
     fn test_find_entry() {
         let dir = tempfile::tempdir().unwrap();
         let contents = "+++\nname = \"alice\"\ndate = \"2026-04-10\"\nstatus = \"pending\"\n+++\nhello";
-        std::fs::write(dir.path().join("1744300800_abcd1234.txt"), contents).unwrap();
+        std::fs::write(dir.path().join("ab12.txt"), contents).unwrap();
 
-        let entry = find_entry(dir.path(), "abcd1234").unwrap();
+        let entry = find_entry(dir.path(), "ab12").unwrap();
         assert_eq!(entry.meta.name, "alice");
 
         assert!(find_entry(dir.path(), "nonexistent").is_err());
@@ -352,16 +337,16 @@ Hello!"#;
         std::fs::create_dir_all(&drawings_dir).unwrap();
         std::fs::create_dir_all(&vn_dir).unwrap();
 
-        let contents = "+++\nname = \"alice\"\ndate = \"2026-04-10\"\nstatus = \"denied\"\ndrawing = \"1744300800_abcd1234.png\"\nvoice_note = \"1744300800_abcd1234.webm\"\n+++\nhello";
-        std::fs::write(entries_dir.join("1744300800_abcd1234.txt"), contents).unwrap();
-        std::fs::write(drawings_dir.join("1744300800_abcd1234.png"), b"fake png").unwrap();
-        std::fs::write(vn_dir.join("1744300800_abcd1234.webm"), b"fake webm").unwrap();
+        let contents = "+++\nname = \"alice\"\ndate = \"2026-04-10\"\nstatus = \"denied\"\ndrawing = \"ab12.png\"\nvoice_note = \"ab12.webm\"\n+++\nhello";
+        std::fs::write(entries_dir.join("ab12.txt"), contents).unwrap();
+        std::fs::write(drawings_dir.join("ab12.png"), b"fake png").unwrap();
+        std::fs::write(vn_dir.join("ab12.webm"), b"fake webm").unwrap();
 
-        let name = delete_entry(dir.path(), "abcd1234").unwrap();
+        let name = delete_entry(dir.path(), "ab12").unwrap();
         assert_eq!(name, "alice");
-        assert!(!entries_dir.join("1744300800_abcd1234.txt").exists());
-        assert!(!drawings_dir.join("1744300800_abcd1234.png").exists());
-        assert!(!vn_dir.join("1744300800_abcd1234.webm").exists());
+        assert!(!entries_dir.join("ab12.txt").exists());
+        assert!(!drawings_dir.join("ab12.png").exists());
+        assert!(!vn_dir.join("ab12.webm").exists());
     }
 
     #[test]
@@ -371,17 +356,4 @@ Hello!"#;
         assert!(delete_entry(dir.path(), "nonexistent").is_err());
     }
 
-    #[test]
-    fn test_short_id() {
-        let contents = "+++\nname = \"a\"\ndate = \"2026-04-10\"\nstatus = \"pending\"\n+++\nhi";
-        let entry = Entry::parse("1744300800_abcd1234", contents).unwrap();
-        assert_eq!(entry.short_id(), "abcd1234");
-    }
-
-    #[test]
-    fn test_short_id_no_underscore() {
-        let contents = "+++\nname = \"a\"\ndate = \"2026-04-10\"\nstatus = \"pending\"\n+++\nhi";
-        let entry = Entry::parse("plainid", contents).unwrap();
-        assert_eq!(entry.short_id(), "plainid");
-    }
 }
