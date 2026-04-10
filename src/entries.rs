@@ -85,12 +85,17 @@ pub fn read_entries(dir: &Path) -> Vec<Entry> {
     entries
 }
 
-/// Read approved entries only.
-pub fn read_approved(dir: &Path) -> Vec<Entry> {
+/// Read entries filtered by status.
+pub fn read_by_status(dir: &Path, status: Status) -> Vec<Entry> {
     read_entries(dir)
         .into_iter()
-        .filter(|e| e.meta.status == Status::Approved)
+        .filter(|e| e.meta.status == status)
         .collect()
+}
+
+/// Read approved entries only.
+pub fn read_approved(dir: &Path) -> Vec<Entry> {
+    read_by_status(dir, Status::Approved)
 }
 
 /// Find an entry file by short ID prefix and update its status.
@@ -251,6 +256,22 @@ status = "pending"
 Hi!"#;
         let entry = Entry::parse("test", contents).unwrap();
         assert_eq!(entry.meta.voice_note, "");
+    }
+
+    #[test]
+    fn test_read_by_status() {
+        let dir = tempfile::tempdir().unwrap();
+        let approved = "+++\nname = \"a\"\ndate = \"2026-04-10\"\nstatus = \"approved\"\n+++\nhi";
+        let pending = "+++\nname = \"b\"\ndate = \"2026-04-10\"\nstatus = \"pending\"\n+++\nhi";
+        let denied = "+++\nname = \"c\"\ndate = \"2026-04-10\"\nstatus = \"denied\"\n+++\nhi";
+        std::fs::write(dir.path().join("1_aaa.txt"), approved).unwrap();
+        std::fs::write(dir.path().join("2_bbb.txt"), pending).unwrap();
+        std::fs::write(dir.path().join("3_ccc.txt"), denied).unwrap();
+
+        assert_eq!(read_by_status(dir.path(), Status::Approved).len(), 1);
+        assert_eq!(read_by_status(dir.path(), Status::Pending).len(), 1);
+        assert_eq!(read_by_status(dir.path(), Status::Denied).len(), 1);
+        assert_eq!(read_by_status(dir.path(), Status::Approved)[0].meta.name, "a");
     }
 
     #[test]
