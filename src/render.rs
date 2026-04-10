@@ -56,8 +56,8 @@ pub fn render_form(config: &Config) -> String {
       cnt=document.querySelector('.guestbook-drawing-content'),
       hid=document.querySelector('[name=drawing]'),
       c,x,d=false,lx,ly,h=[],col='#000',sz=5;
-  function pos(e){{var r=c.getBoundingClientRect();return[e.clientX-r.left,e.clientY-r.top]}}
-  function tpos(e){{var r=c.getBoundingClientRect(),t=e.touches[0];return[t.clientX-r.left,t.clientY-r.top]}}
+  function pos(e){{var r=c.getBoundingClientRect(),sx=c.width/r.width,sy=c.height/r.height;return[(e.clientX-r.left)*sx,(e.clientY-r.top)*sy]}}
+  function tpos(e){{var r=c.getBoundingClientRect(),t=e.touches[0],sx=c.width/r.width,sy=c.height/r.height;return[(t.clientX-r.left)*sx,(t.clientY-r.top)*sy]}}
   function save(){{if(h.length>=20)h.shift();h.push(x.getImageData(0,0,c.width,c.height))}}
   function dot(px,py){{x.beginPath();x.arc(px,py,sz/2,0,Math.PI*2);x.fillStyle=col;x.fill()}}
   function bindCanvas(){{

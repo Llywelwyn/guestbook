@@ -14,6 +14,7 @@
 .guestbook-input {}
 .guestbook-textarea {
   box-sizing: border-box;
+  max-width: 100%;
 }
 .guestbook-button {
   display: block;
@@ -25,6 +26,8 @@
   border: 1px solid #000;
   cursor: crosshair;
   display: block;
+  max-width: 100%;
+  height: auto;
 }
 .guestbook-canvas-tools {
   display: block;
