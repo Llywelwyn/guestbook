@@ -56,8 +56,17 @@ pub async fn notification_task(bot: Bot, chat_id: ChatId, mut rx: Receiver<(Entr
     }
 }
 
-/// Run the Telegram bot that listens for /allow_ and /deny_ commands.
+/// Run the Telegram bot that listens for commands.
 pub async fn bot_task(bot: Bot, chat_id: ChatId, data_dir: PathBuf) {
+    let commands = vec![
+        teloxide::types::BotCommand::new("pending", "List pending entries"),
+        teloxide::types::BotCommand::new("approved", "List approved entries"),
+        teloxide::types::BotCommand::new("denied", "List denied entries"),
+    ];
+    if let Err(e) = bot.set_my_commands(commands).await {
+        tracing::error!("failed to set bot commands: {e}");
+    }
+
     let handler = Update::filter_message().endpoint(
         |bot: Bot, msg: Message, data_dir: PathBuf, chat_id: ChatId| async move {
             let text = msg.text().unwrap_or("");
@@ -102,9 +111,9 @@ pub async fn bot_task(bot: Bot, chat_id: ChatId, data_dir: PathBuf) {
                     Ok(entry) => {
                         let short_id = entry.short_id();
                         let text = format!(
-                            "Entry ({:?}):\n\nName: {}\nWebsite: {}\nDate: {}\n\n{}\n\n/allow_{}\n/deny_{}\n/delete_{}",
+                            "Entry ({:?}):\n\nName: {}\nWebsite: {}\nDate: {}\n\n{}\n\n/allow_{}\n/deny_{}",
                             entry.meta.status, entry.meta.name, entry.meta.website,
-                            entry.meta.date, entry.body, short_id, short_id, short_id
+                            entry.meta.date, entry.body, short_id, short_id
                         );
                         bot.send_message(msg.chat.id, &text).await?;
 
