@@ -3,14 +3,15 @@
 
 `guestbook` is a self-hosted guestbook web service with:
 - entries stored in plaintext,
-- optional [drawing canvas](#drawing) for visitors to sketch alongside their message,
-- notifications and moderation via [Telegram](#telegram) (including drawing previews),
+- a [drawing canvas](#drawing) for visitors to sketch alongside their message,
+- [voice notes](#voice-notes) for visitors to record a short audio clip,
+- notifications and moderation via [Telegram](#telegram),
 - spam prevention via honeypot and/or [captcha](#captcha),
-- completely customisable [styling](#customisation),
+- fairly customisable [styling](#customisation),
 
 and more, written in Rust, and inspired by [t0.vc/g](https://t0.vc/g).
 
-`guestbook` is a single binary that serves a single-page guestbook aimed at personal sites. There's a form for visitors to submit a name, message, and optionally a link to their own site. Visitors can also draw a picture if the drawing feature is enabled. Entries are written to plain text files with TOML frontmatter, and are initially marked as pending. The frontmatter can be manually edited to mark entries as approved or denied, or a Telegram bot can be hooked up for notifications and moderation (drawings are sent as photos so you can see them before approving). Running the Telegram bot just requires handing over a bot token, and it'll run off the same binary.
+`guestbook` is a single binary that serves a single-page guestbook aimed at personal sites. There's a form for visitors to submit a name, message, and optionally a link to their own site. Visitors can also draw a picture or leave a voice note if those features are enabled. Entries are written to plain text files with TOML frontmatter, and are initially marked as pending. The frontmatter can be manually edited to mark entries as approved or denied, or a Telegram bot can be hooked up for notifications and moderation (drawings are sent as photos and voice notes as voice messages so you can review them before approving). Running the Telegram bot just requires handing over a bot token, and it'll run off the same binary.
 
 Everything is configured through environment variables (see [`.env.example`](#default-config) for the defaults). If you're hosting with Nix, there's a flake that can set up the `guestbook` service end-to-end, running on a systemd service with a Caddy reverse proxy. Optionally, just ignore the flake and set up all the extra stuff yourself.
 
@@ -182,6 +183,21 @@ Running `guestbook` with no env vars will give you a working guestbook on `local
 # Supports {{title}} and {{style}} placeholders. Use <script> for dynamic behavior.
 # Uses built-in templates/success.html if unset.
 # BOOK_SUCCESS_TEMPLATE=./templates/success.html
+
+# Enable drawing canvas in submission form. Drawings are stored as PNG files in DATA_DIR/drawings/.
+# BOOK_ENABLE_DRAWINGS=false
+
+# Drawing canvas width in pixels.
+# BOOK_CANVAS_WIDTH=400
+
+# Drawing canvas height in pixels.
+# BOOK_CANVAS_HEIGHT=200
+
+# Enable voice note recording in submission form. Voice notes are stored as WebM files in DATA_DIR/voice_notes/.
+# BOOK_ENABLE_VOICE_NOTES=false
+
+# Maximum voice note duration in seconds. Max file size is derived as duration * 10KB.
+# BOOK_VOICE_NOTE_MAX_DURATION=20
 ```
 
 #### NixOS Module
@@ -209,6 +225,10 @@ services.guestbook = {
       enable = false;
       canvasWidth = 400;
       canvasHeight = 200;
+    };
+    voiceNote = {
+      enable = false;
+      maxDuration = 20;
     };
     telegram = {
       enable = false;
@@ -246,7 +266,6 @@ services.guestbook = {
       name = "Your name:";
       website = "Your website (optional):";
       message = "Your message:";
-      drawing = "Draw (optional):";
     };
     message = {
       width = 400;
@@ -268,17 +287,27 @@ When Telegram moderation is enabled, drawings are sent as photos in the notifica
 
 ---
 
+### Voice Notes
+
+Set `BOOK_ENABLE_VOICE_NOTES=true` to let visitors record a short audio clip alongside their message. Recording uses the browser's MediaRecorder API (WebM/Opus format). The form shows an "add a voice note" link that starts recording on click, with a timer counting up to the configured max duration (`BOOK_VOICE_NOTE_MAX_DURATION`, default 20 seconds). After recording, visitors can listen back, re-record, or discard.
+
+Server-side validation checks the WebM magic bytes (`\x1a\x45\xdf\xa3`) and enforces a file size cap derived from the max duration (`duration * 10KB`). Voice notes are stored as WebM files in `{data_dir}/voice_notes/` and rendered as native `<audio>` elements below the entry header, independent of the HTML injection setting.
+
+When Telegram moderation is enabled, voice notes are sent as voice messages in the notification so you can hear them before approving.
+
+---
+
 ### Telegram
 
 To enable Telegram moderation, create a bot via [@BotFather](https://t.me/BotFather) and set `BOOK_TELEGRAM_BOT_TOKEN` to the token it gives you. Set `BOOK_TELEGRAM_CHAT_ID` to the chat ID where you want notifications sent: the easiest way to find this is to message the bot and check the [getUpdates](https://api.telegram.org/bot<token>/getUpdates) endpoint.
 
-When a visitor submits an entry, the bot sends a message with the entry details and `/allow_<id>` and `/deny_<id>` commands. Tap either to approve or deny. If you approve something and later want to deny it, or vice versa, just hit the opposite option and it'll work as expected.
+When a visitor submits an entry, the bot sends a message with the entry details and `/allow_<id>` and `/deny_<id>` commands, as well as any drawing or voice note attached. Tap either command to approve or deny. If you approve something and later want to deny it, or vice versa, just hit the opposite option and it'll work as expected.
 
 ---
 
 ### Entry Format
 
-Each entry is a plain text file in `{data_dir}/entries/`. The filename is `{epoch}_{uuid}.txt`. If the entry has a drawing, the drawing is stored as `{epoch}_{uuid}.png` in `{data_dir}/drawings/` with the same prefix.
+Each entry is a plain text file in `{data_dir}/entries/`. The filename is `{epoch}_{uuid}.txt`. If the entry has a drawing, the drawing is stored as `{epoch}_{uuid}.png` in `{data_dir}/drawings/` with the same prefix. Voice notes work the same way, stored as `{epoch}_{uuid}.webm` in `{data_dir}/voice_notes/`.
 
 ```
 +++
@@ -286,12 +315,13 @@ name = "someone"
 date = "2026-04-09T12:00:00"
 website = "https://example.com"
 drawing = "1744185600_abcd1234.png"
+voice_note = "1744300800_abcd1234.webm"
 status = "pending"
 +++
 Message body here.
 ```
 
-The `status` field can be `pending`, `approved`, or `denied`. Only approved entries are displayed. The `drawing` field is empty when there's no drawing. To moderate without Telegram, just edit the file and change `status` to `approved` or `denied`.
+The `status` field can be `pending`, `approved`, or `denied`. Only approved entries are displayed. The `drawing` and `voice_note` fields are empty when there's no drawing or voice note. To moderate without Telegram, just edit the file and change `status` to `approved` or `denied`.
 
 ---
 
@@ -368,17 +398,39 @@ Validation errors (empty fields, wrong captcha, etc.) show a simple error page w
 .guestbook-form {}
 .guestbook-label {}
 .guestbook-input {}
-.guestbook-textarea {}
-.guestbook-button {}
+.guestbook-textarea {
+  box-sizing: border-box;
+}
+.guestbook-button {
+  display: block;
+  margin-top: 1em;
+}
 
 /* Drawings */
 .guestbook-canvas {
   border: 1px solid #000;
   cursor: crosshair;
+  display: block;
 }
-.guestbook-canvas-reset {}
+.guestbook-drawing-content {
+  display: block;
+  margin-bottom: 1em;
+}
 .entry-drawing {
   max-width: 100%;
+}
+
+/* Voice notes */
+.guestbook-voice-record.recording {
+  color: red;
+}
+.guestbook-voice-timer {
+  font-variant-numeric: tabular-nums;
+}
+audio {
+  display: block;
+  margin-top: 0.6em;
+  height: 2em;
 }
 
 /* Entries */
