@@ -81,7 +81,7 @@ pub async fn bot_task(bot: Bot, chat_id: ChatId, data_dir: PathBuf) {
             } else if let Some(id) = text.strip_prefix("/deny_") {
                 match entries::set_status(&entries_dir, id, Status::Denied) {
                     Ok(name) => {
-                        bot.send_message(msg.chat.id, format!("Denied ({name})."))
+                        bot.send_message(msg.chat.id, format!("Denied ({name}).\n/delete_{id}"))
                             .await?;
                     }
                     Err(e) => {
@@ -129,6 +129,15 @@ pub async fn bot_task(bot: Bot, chat_id: ChatId, data_dir: PathBuf) {
                                 ).await.ok();
                             }
                         }
+                    }
+                    Err(e) => {
+                        bot.send_message(msg.chat.id, e).await?;
+                    }
+                }
+            } else if let Some(id) = text.strip_prefix("/delete_") {
+                match entries::delete_entry(&data_dir, id) {
+                    Ok(name) => {
+                        bot.send_message(msg.chat.id, format!("Deleted ({name}).")).await?;
                     }
                     Err(e) => {
                         bot.send_message(msg.chat.id, e).await?;
