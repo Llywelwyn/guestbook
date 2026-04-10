@@ -216,6 +216,7 @@ pub fn render_error_page(config: &Config, error: &str) -> String {
     } else {
         &config.style
     };
+    let error = escape_html(error);
     format!(
         r#"<!DOCTYPE html>
 <html lang="en">
