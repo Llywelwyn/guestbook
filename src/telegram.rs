@@ -7,7 +7,7 @@ use crate::entries::{self, Entry, Status};
 
 /// Send a notification to Telegram about a new entry.
 async fn notify(bot: &Bot, chat_id: ChatId, entry: &Entry) {
-    let short_id = entry.id.split('_').last().unwrap_or(&entry.id);
+    let short_id = entry.short_id();
     let text = format!(
         "New guestbook entry:\n\nName: {}\nWebsite: {}\n\n{}\n\n/allow_{}\n/deny_{}",
         entry.meta.name, entry.meta.website, entry.body, short_id, short_id

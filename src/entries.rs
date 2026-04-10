@@ -49,6 +49,11 @@ impl Entry {
         })
     }
 
+    /// Return the short ID (UUID portion after the underscore).
+    pub fn short_id(&self) -> &str {
+        self.id.split('_').last().unwrap_or(&self.id)
+    }
+
     /// Serialize entry back to file format.
     pub fn to_file_contents(&self) -> String {
         let frontmatter = toml::to_string_pretty(&self.meta).unwrap();
@@ -359,5 +364,19 @@ Hello!"#;
         let dir = tempfile::tempdir().unwrap();
         std::fs::create_dir_all(dir.path().join("entries")).unwrap();
         assert!(delete_entry(dir.path(), "nonexistent").is_err());
+    }
+
+    #[test]
+    fn test_short_id() {
+        let contents = "+++\nname = \"a\"\ndate = \"2026-04-10\"\nstatus = \"pending\"\n+++\nhi";
+        let entry = Entry::parse("1744300800_abcd1234", contents).unwrap();
+        assert_eq!(entry.short_id(), "abcd1234");
+    }
+
+    #[test]
+    fn test_short_id_no_underscore() {
+        let contents = "+++\nname = \"a\"\ndate = \"2026-04-10\"\nstatus = \"pending\"\n+++\nhi";
+        let entry = Entry::parse("plainid", contents).unwrap();
+        assert_eq!(entry.short_id(), "plainid");
     }
 }
