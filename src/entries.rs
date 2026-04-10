@@ -98,8 +98,8 @@ pub fn read_approved(dir: &Path) -> Vec<Entry> {
     read_by_status(dir, Status::Approved)
 }
 
-/// Find an entry file by short ID prefix and update its status.
-pub fn set_status(dir: &Path, short_id: &str, status: Status) -> Result<String, String> {
+/// Find a single entry by short ID (the UUID portion after the underscore).
+pub fn find_entry(dir: &Path, short_id: &str) -> Result<Entry, String> {
     let read_dir = std::fs::read_dir(dir).map_err(|e| e.to_string())?;
     for item in read_dir {
         let Ok(item) = item else { continue };
@@ -107,18 +107,20 @@ pub fn set_status(dir: &Path, short_id: &str, status: Status) -> Result<String, 
         let fname = path.file_name().and_then(|s| s.to_str()).unwrap_or("");
         if fname.contains(short_id) && fname.ends_with(".txt") {
             let contents = std::fs::read_to_string(&path).map_err(|e| e.to_string())?;
-            let id = path
-                .file_stem()
-                .and_then(|s| s.to_str())
-                .unwrap_or("")
-                .to_string();
-            let mut entry = Entry::parse(&id, &contents)?;
-            entry.meta.status = status;
-            std::fs::write(&path, entry.to_file_contents()).map_err(|e| e.to_string())?;
-            return Ok(entry.meta.name.clone());
+            let id = path.file_stem().and_then(|s| s.to_str()).unwrap_or("").to_string();
+            return Entry::parse(&id, &contents);
         }
     }
     Err("Not found.".into())
+}
+
+/// Find an entry file by short ID prefix and update its status.
+pub fn set_status(dir: &Path, short_id: &str, status: Status) -> Result<String, String> {
+    let mut entry = find_entry(dir, short_id)?;
+    entry.meta.status = status;
+    let path = dir.join(format!("{}.txt", entry.id));
+    std::fs::write(&path, entry.to_file_contents()).map_err(|e| e.to_string())?;
+    Ok(entry.meta.name.clone())
 }
 
 #[cfg(test)]
@@ -287,5 +289,17 @@ Hello!"#;
         let serialized = entry.to_file_contents();
         let reparsed = Entry::parse("test", &serialized).unwrap();
         assert_eq!(reparsed.meta.voice_note, "1744300800_abcd1234.webm");
+    }
+
+    #[test]
+    fn test_find_entry() {
+        let dir = tempfile::tempdir().unwrap();
+        let contents = "+++\nname = \"alice\"\ndate = \"2026-04-10\"\nstatus = \"pending\"\n+++\nhello";
+        std::fs::write(dir.path().join("1744300800_abcd1234.txt"), contents).unwrap();
+
+        let entry = find_entry(dir.path(), "abcd1234").unwrap();
+        assert_eq!(entry.meta.name, "alice");
+
+        assert!(find_entry(dir.path(), "nonexistent").is_err());
     }
 }
