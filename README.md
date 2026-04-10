@@ -316,25 +316,43 @@ When Telegram moderation is enabled, the notification includes a `/voice_note_<i
 
 To enable Telegram moderation, create a bot via [@BotFather](https://t.me/BotFather) and set `BOOK_TELEGRAM_BOT_TOKEN` to the token it gives you. Set `BOOK_TELEGRAM_CHAT_ID` to the chat ID where you want notifications sent: the easiest way to find this is to message the bot and check the [getUpdates](https://api.telegram.org/bot<token>/getUpdates) endpoint.
 
-When a visitor submits an entry, the bot sends a formatted message with bold section headers showing the entry details, any attached media as on-demand commands (`/drawing_<id>`, `/voice_note_<id>`), and moderation commands. If the notification fails to send, it retries in the background (configurable via `BOOK_TELEGRAM_RETRY_INTERVAL` and `BOOK_TELEGRAM_RETRY_LIMIT`).
+When a visitor submits an entry, the bot sends a notification with the entry details and moderation commands. If the send fails, it retries in the background (`BOOK_TELEGRAM_RETRY_INTERVAL`, `BOOK_TELEGRAM_RETRY_LIMIT`). A periodic reminder will remind you about any pending entries once a day by default (`BOOK_TELEGRAM_REMINDER_INTERVAL` seconds, 0 to disable).
 
-The bot also registers these commands in the Telegram command menu (visible when you type `/`):
+#### Commands
 
-- `/pending` — list all pending entries with previews
-- `/approved` — list all approved entries
-- `/denied` — list all denied entries
+```bash
+# List pending, approved, or denied entries.
+/pending
+/approved
+/denied
 
-Each listed entry includes a `/view_<id>` link. Viewing an entry shows the full details, drawing, and voice note, along with `/allow_<id>` and `/deny_<id>` commands.
+# View the full details of an entry.
+/view_<id>
 
-To delete an entry and all its associated media (drawing, voice note), use `/delete_<id>`.
+# View entry attachments, if they exist.
+/drawing_<id>
+/voice_note_<id>
 
-None of these commands require clicking on the links. They'll all just work by typing them in the chat to your bot.
+# Approve and deny entries.
+/allow_<id>
+/deny_<id>
+
+# Append a reply to an entry.
+# Reply is a multi-line command. Your reply will be appended
+# to the guestbook entry, prefixed by `>>`.
+/reply_<id>
+[response]
+
+# Delete an entry.
+/delete_<id>
+/confirm_delete_<id>
+```
 
 ---
 
 ### Entry Format
 
-Each entry is a plain text file in `{data_dir}/entries/`. The filename is a 4-character base36 ID (e.g., `ab3c.txt`). Drawings and voice notes share the same ID (`ab3c.png`, `ab3c.webm`) in their respective directories. Entries are anchor-linkable on the web page via `#id`.
+Each entry is a plain text file in `{data_dir}/entries/`. The filename is a 4-character base36 ID (e.g., `ab3c.txt`). Drawings and voice notes share the same ID (`ab3c.png`, `ab3c.webm`) in their respective directories. Entries can be anchor linked via `#id`.
 
 ```
 +++
@@ -345,12 +363,15 @@ drawing = "ab3c.png"
 voice_note = "ab3c.webm"
 status = "approved"
 +++
-Message body here.
+Message body here. This is what someone
+entered into the 'message' field.
 
->>  Owner reply lines prefixed with ">>  ".
+>>  This is a reply. You can append
+>>  to a message manually, and format
+>>  yourself, or /reply_<id> to the bot.
 ```
 
-The `status` field can be `pending`, `approved`, or `denied`. Only approved entries are displayed. The `drawing` and `voice_note` fields are empty when there's no drawing or voice note. Replies can be added via Telegram (`/reply_<id>`) or by hand-editing the body. To moderate without Telegram, just edit the file and change `status` to `approved` or `denied`.
+`status` is either `pending`, `approved`, or `denied`. Only approved entries are displayed. `drawing` and `voice_note` fields link to their respective attachments, or nothing if they're empty. State is all stored in these files so you can moderate however you like, either via the built-in bot or just by manually editing the `status` field yourself.
 
 ---
 
@@ -375,8 +396,7 @@ The `status` field can be `pending`, `approved`, or `denied`. Only approved entr
               BOOK_LABEL_NAME, BOOK_LABEL_WEBSITE, BOOK_LABEL_MESSAGE,
               BOOK_BUTTON_TEXT, BOOK_TEXTAREA_WIDTH, BOOK_TEXTAREA_HEIGHT.
               Empty when BOOK_ENABLE_SUBMISSIONS=false.
-    entries - Approved guestbook entries, newest first. Entry separator
-              controlled by BOOK_SEPARATOR.
+    entries - Approved guestbook entries, newest first.
     style   - Custom CSS from BOOK_STYLE or BOOK_STYLE_FILE, wrapped in
               a <style> tag. Uses built-in default.css when neither is set.
 
@@ -392,11 +412,14 @@ The `status` field can be `pending`, `approved`, or `denied`. Only approved entr
 </head>
 <body>
 <div class="page-container">
-<h3>{{title}}</h3>
+{{title}}
+=========
+
 {{prompt}}
 {{form}}
 
-<h3>entries</h3>
+entries
+=======
 {{entries}}
 </div>
 </body>
@@ -405,9 +428,35 @@ The `status` field can be `pending`, `approved`, or `denied`. Only approved entr
 
 #### Success Page
 
-After a successful submission, visitors see a success page. The default is built into the binary from `templates/success.html`. To customise it, copy the file and point `BOOK_SUCCESS_TEMPLATE` at your copy. The `{{title}}` and `{{style}}` placeholders work the same as in the main template. Use `<script>` for dynamic behavior like showing the current time.
+```html
+<!--
+  Default success page shown after a guestbook submission.
+  Copy this file and point BOOK_SUCCESS_TEMPLATE at your copy to customize.
 
-Validation errors (empty fields, wrong captcha, etc.) show a simple error page with the error message and a back link. This page is not customisable.
+  Available placeholders:
+
+    title - Site title (BOOK_SITE_TITLE).
+    style - Custom CSS (same as the main template).
+
+  Everything else is static — write whatever you want. Use <script> for
+  dynamic behavior like showing the current time.
+-->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{title}}</title>
+  {{style}}
+</head>
+<body>
+<div class="page-container">
+<p>Thanks! Your message is pending approval.</p>
+<p><a href="/">&#8592; back</a></p>
+</div>
+</body>
+</html>
+```
 
 #### Default CSS
 
@@ -428,9 +477,33 @@ Validation errors (empty fields, wrong captcha, etc.) show a simple error page w
 .guestbook-textarea { display: block; box-sizing: border-box; max-width: 100%; margin-bottom: 0.5em; }
 .guestbook-button { display: block; margin-top: 1em; margin-bottom: 1.5em; }
 
+/* Drawings */
+.guestbook-canvas { border: 1px solid #000; cursor: crosshair; display: block; max-width: 100%; height: auto; }
+.guestbook-canvas-tools { display: block; }
+.guestbook-canvas-tools a { cursor: pointer; }
+.guestbook-drawing-wrap { display: block; margin-bottom: 0.5em; }
+.guestbook-drawing-inline a { cursor: pointer; }
+.guestbook-drawing-content:empty { display: none; }
+.guestbook-drawing-content { display: block; margin-bottom: 0.5em; }
+.guestbook-swatch { display: inline-block; width: 0.85em; height: 0.85em; border: 1px solid #000; cursor: pointer; vertical-align: middle; box-sizing: border-box; margin: 0 1px; }
+.guestbook-swatch.active { border: 1px solid #000; outline: 1px solid #000; }
+.guestbook-size-slider { width: 4em; vertical-align: middle; }
+.entry-drawing { max-width: 100%; }
+
+/* Voice notes */
+.guestbook-voice-wrap { display: block; margin-bottom: 0.5em; }
+.guestbook-voice-record.recording { color: red; }
+.guestbook-voice-timer { font-variant-numeric: tabular-nums; }
+.guestbook-voice-playback:empty { display: none; }
+.guestbook-voice-playback { display: block; white-space: normal; }
+audio { display: block; margin-bottom: 0.3em; height: 2em; }
+
 /* Entries */
 .entry { margin: 0.5em 0; }
 .entry-header { margin-bottom: 0.2em; }
+.entry-date {}
+.entry-name {}
+.entry-website {}
 .entry-body { white-space: pre-wrap; }
 ```
 
