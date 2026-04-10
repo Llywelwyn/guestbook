@@ -317,14 +317,9 @@ in
         };
         serviceConfig = {
           Type = "simple";
-          ExecStartPre = "+${pkgs.writeShellScript "guestbook-prepare" ''
-            mkdir -p ${cfg.dataDir}/entries ${cfg.dataDir}/drawings ${cfg.dataDir}/voice_notes
-            chown -R ${cfg.user}:${cfg.group} ${cfg.dataDir}
-          ''}";
           Restart = "on-failure";
           User = cfg.user;
           Group = cfg.group;
-          ReadWritePaths = [ cfg.dataDir ];
         };
         script = ''
           ${lib.optionalString cfg.features.telegram.enable ''
@@ -333,6 +328,12 @@ in
           exec ${cfg.package}/bin/guestbook
         '';
       };
+
+      systemd.tmpfiles.rules = [
+        "d ${cfg.dataDir}/entries 0755 ${cfg.user} ${cfg.group} -"
+        "d ${cfg.dataDir}/drawings 0755 ${cfg.user} ${cfg.group} -"
+        "d ${cfg.dataDir}/voice_notes 0755 ${cfg.user} ${cfg.group} -"
+      ];
 
       users.users.${cfg.user} = {
         isSystemUser = true;
