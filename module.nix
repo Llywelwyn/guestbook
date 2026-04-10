@@ -94,6 +94,20 @@ in
         };
       };
 
+      voiceNote = {
+        enable = mkOption {
+          type = types.bool;
+          default = false;
+          description = "Enable voice note recording in the submission form. Stores WebM files in dataDir/voice_notes/.";
+        };
+
+        maxDuration = mkOption {
+          type = types.int;
+          default = 20;
+          description = "Maximum voice note duration in seconds. Max file size is derived as duration * 10KB.";
+        };
+      };
+
       telegram = {
         enable = mkEnableOption "Telegram moderation notifications";
 
@@ -236,12 +250,6 @@ in
           default = "Your message:";
           description = "Label for the message field.";
         };
-
-        drawing = mkOption {
-          type = types.str;
-          default = "Draw (optional):";
-          description = "Label for the drawing canvas.";
-        };
       };
 
       message = {
@@ -292,9 +300,10 @@ in
           BOOK_LABEL_NAME = cfg.styles.labels.name;
           BOOK_LABEL_WEBSITE = cfg.styles.labels.website;
           BOOK_LABEL_MESSAGE = cfg.styles.labels.message;
-          BOOK_LABEL_DRAWING = cfg.styles.labels.drawing;
           BOOK_CANVAS_WIDTH = toString cfg.features.drawing.canvasWidth;
           BOOK_CANVAS_HEIGHT = toString cfg.features.drawing.canvasHeight;
+          BOOK_ENABLE_VOICE_NOTES = if cfg.features.voiceNote.enable then "true" else "false";
+          BOOK_VOICE_NOTE_MAX_DURATION = toString cfg.features.voiceNote.maxDuration;
           BOOK_TEXTAREA_WIDTH = toString cfg.styles.message.width;
           BOOK_TEXTAREA_HEIGHT = toString cfg.styles.message.height;
         } // lib.optionalAttrs (cfg.styles.cssFile != null) {
@@ -309,7 +318,7 @@ in
         serviceConfig = {
           Type = "simple";
           ExecStartPre = "+${pkgs.writeShellScript "guestbook-prepare" ''
-            mkdir -p ${cfg.dataDir}/entries ${cfg.dataDir}/drawings
+            mkdir -p ${cfg.dataDir}/entries ${cfg.dataDir}/drawings ${cfg.dataDir}/voice_notes
             chown -R ${cfg.user}:${cfg.group} ${cfg.dataDir}
           ''}";
           Restart = "on-failure";
