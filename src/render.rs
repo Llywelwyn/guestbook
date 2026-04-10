@@ -142,7 +142,7 @@ pub fn render_form(config: &Config) -> String {
     a.textContent='stop recording';
     a.addEventListener('click',function(e){{e.preventDefault();rec.stop();rec.stream.getTracks().forEach(function(t){{t.stop()}})}});
     inl.appendChild(a);inl.appendChild(document.createTextNode(' '));
-    var t=document.createElement('span');t.className='guestbook-voice-timer';inl.appendChild(t);
+    var t=document.createElement('span');t.className='guestbook-voice-timer';t.setAttribute('aria-live','polite');t.setAttribute('aria-label','Recording timer');inl.appendChild(t);
     st=Date.now();t.textContent=fmt(0)+' / '+fmt(maxDur);
     iv=setInterval(function(){{
       var el=Math.floor((Date.now()-st)/1000);t.textContent=fmt(el)+' / '+fmt(maxDur);
