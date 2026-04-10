@@ -104,6 +104,15 @@ Running `guestbook` with no env vars will give you a working guestbook on `local
 # Telegram chat ID for moderation messages. Required if bot token is set.
 # BOOK_TELEGRAM_CHAT_ID=0
 
+# Seconds between retry attempts for failed Telegram notifications.
+# BOOK_TELEGRAM_RETRY_INTERVAL=20
+
+# Maximum number of retry attempts for failed Telegram notifications.
+# BOOK_TELEGRAM_RETRY_LIMIT=3
+
+# Seconds between pending entry reminders. Set to 0 to disable.
+# BOOK_TELEGRAM_REMINDER_INTERVAL=86400
+
 # Enable honeypot field for spam prevention.
 # BOOK_ENABLE_HONEYPOT=true
 
@@ -142,16 +151,13 @@ Running `guestbook` with no env vars will give you a working guestbook on `local
 # Maximum length for website URLs. 0 for unlimited.
 # BOOK_MAX_WEBSITE_LENGTH=0
 
-# Separator between guestbook entries.
-# BOOK_SEPARATOR=------------------------------------------------------------
-
 # Path to a CSS file. Takes precedence over BOOK_STYLE. Uses built-in default if unset.
 # BOOK_STYLE_FILE=./templates/default.css
 
 # Custom CSS injected into a style tag.
 # Classes: .guestbook-form, .guestbook-prompt, .guestbook-label, .guestbook-input,
-#          .guestbook-textarea, .guestbook-button, .entry-header, .entry-date, .entry-name,
-#          .entry-website, .entry-body, .entry-separator
+#          .guestbook-textarea, .guestbook-button, .entry, .entry-header, .entry-date,
+#          .entry-name, .entry-website, .entry-body
 # BOOK_STYLE=
 
 # Text shown above the form.
@@ -239,6 +245,11 @@ services.guestbook = {
       enable = false;
       # botTokenFile = <path>;  -- required when enabled
       # chatId = <int>;         -- required when enabled
+      retry = {
+        interval = 20;
+        limit = 3;
+      };
+      reminderInterval = 86400;
     };
     security = {
       htmlInjection.enable = false;
@@ -264,7 +275,6 @@ services.guestbook = {
     cssFile = null;
     templateFile = null;
     successTemplateFile = null;
-    separator = "------------------------------------------------------------";
     greeting = "Thanks for visiting. Sign the guestbook!";
     labels = {
       submit = "sign";
@@ -288,7 +298,7 @@ Set `BOOK_ENABLE_DRAWINGS=true` to add a drawing canvas to the form. Visitors dr
 
 Server-side validation checks the PNG magic bytes (`\x89PNG\r\n\x1a\n`), then reads width/height from the IHDR chunk and rejects anything that doesn't match `BOOK_CANVAS_WIDTH` x `BOOK_CANVAS_HEIGHT`. Max file size is derived from canvas dimensions (`w * h * 4`, the raw RGBA ceiling). A 2MB request body limit is enforced on all form submissions.
 
-When Telegram moderation is enabled, drawings are sent as photos in the notification so you can see them before approving.
+When Telegram moderation is enabled, the notification includes a `/drawing_<id>` command to view the drawing on demand.
 
 ---
 
@@ -298,7 +308,7 @@ Set `BOOK_ENABLE_VOICE_NOTES=true` to let visitors record a short audio clip alo
 
 Server-side validation checks the WebM magic bytes (`\x1a\x45\xdf\xa3`) and enforces a file size cap derived from the max duration (`duration * 10KB`). Voice notes are stored as WebM files in `{data_dir}/voice_notes/` and rendered as native `<audio>` elements below the entry header, independent of the HTML injection setting.
 
-When Telegram moderation is enabled, voice notes are sent as voice messages in the notification so you can hear them before approving.
+When Telegram moderation is enabled, the notification includes a `/voice_note_<id>` command to listen on demand.
 
 ---
 
@@ -306,7 +316,7 @@ When Telegram moderation is enabled, voice notes are sent as voice messages in t
 
 To enable Telegram moderation, create a bot via [@BotFather](https://t.me/BotFather) and set `BOOK_TELEGRAM_BOT_TOKEN` to the token it gives you. Set `BOOK_TELEGRAM_CHAT_ID` to the chat ID where you want notifications sent: the easiest way to find this is to message the bot and check the [getUpdates](https://api.telegram.org/bot<token>/getUpdates) endpoint.
 
-When a visitor submits an entry, the bot sends a message with the entry details and `/allow_<id>` and `/deny_<id>` commands, as well as any drawing or voice note attached. Tap either command to approve or deny. Denying an entry offers a `/delete_<id>` command to remove it and its media from disk. If you approve something and later want to deny it, or vice versa, just hit the opposite option and it'll work as expected.
+When a visitor submits an entry, the bot sends a formatted message with bold section headers showing the entry details, any attached media as on-demand commands (`/drawing_<id>`, `/voice_note_<id>`), and moderation commands. If the notification fails to send, it retries in the background (configurable via `BOOK_TELEGRAM_RETRY_INTERVAL` and `BOOK_TELEGRAM_RETRY_LIMIT`).
 
 The bot also registers these commands in the Telegram command menu (visible when you type `/`):
 
@@ -324,21 +334,23 @@ None of these commands require clicking on the links. They'll all just work by t
 
 ### Entry Format
 
-Each entry is a plain text file in `{data_dir}/entries/`. The filename is `{epoch}_{uuid}.txt`. If the entry has a drawing, the drawing is stored as `{epoch}_{uuid}.png` in `{data_dir}/drawings/` with the same prefix. Voice notes work the same way, stored as `{epoch}_{uuid}.webm` in `{data_dir}/voice_notes/`.
+Each entry is a plain text file in `{data_dir}/entries/`. The filename is a 4-character base36 ID (e.g., `ab3c.txt`). Drawings and voice notes share the same ID (`ab3c.png`, `ab3c.webm`) in their respective directories. Entries are anchor-linkable on the web page via `#id`.
 
 ```
 +++
 name = "someone"
 date = "2026-04-09T12:00:00"
 website = "https://example.com"
-drawing = "1744185600_abcd1234.png"
-voice_note = "1744300800_abcd1234.webm"
-status = "pending"
+drawing = "ab3c.png"
+voice_note = "ab3c.webm"
+status = "approved"
 +++
 Message body here.
+
+>>  Owner reply lines prefixed with ">>  ".
 ```
 
-The `status` field can be `pending`, `approved`, or `denied`. Only approved entries are displayed. The `drawing` and `voice_note` fields are empty when there's no drawing or voice note. To moderate without Telegram, just edit the file and change `status` to `approved` or `denied`.
+The `status` field can be `pending`, `approved`, or `denied`. Only approved entries are displayed. The `drawing` and `voice_note` fields are empty when there's no drawing or voice note. Replies can be added via Telegram (`/reply_<id>`) or by hand-editing the body. To moderate without Telegram, just edit the file and change `status` to `approved` or `denied`.
 
 ---
 
@@ -380,16 +392,11 @@ The `status` field can be `pending`, `approved`, or `denied`. Only approved entr
 </head>
 <body>
 <div class="page-container">
-{{title}}
-
-guestbook
-=========
-
+<h3>{{title}}</h3>
 {{prompt}}
 {{form}}
 
-entries
-=======
+<h3>entries</h3>
 {{entries}}
 </div>
 </body>
@@ -410,57 +417,21 @@ Validation errors (empty fields, wrong captcha, etc.) show a simple error page w
   max-width: 70ch;
   margin: 0 auto;
   padding: 1rem;
-  white-space: pre-wrap;
   word-wrap: break-word;
 }
 
 /* Form */
-.guestbook-prompt {}
+.guestbook-prompt { display: block; margin-bottom: 1em; }
 .guestbook-form {}
-.guestbook-label {}
-.guestbook-input {}
-.guestbook-textarea {
-  box-sizing: border-box;
-}
-.guestbook-button {
-  display: block;
-  margin-top: 1em;
-}
-
-/* Drawings */
-.guestbook-canvas {
-  border: 1px solid #000;
-  cursor: crosshair;
-  display: block;
-}
-.guestbook-drawing-content {
-  display: block;
-  margin-bottom: 1em;
-}
-.entry-drawing {
-  max-width: 100%;
-}
-
-/* Voice notes */
-.guestbook-voice-record.recording {
-  color: red;
-}
-.guestbook-voice-timer {
-  font-variant-numeric: tabular-nums;
-}
-audio {
-  display: block;
-  margin-top: 0.6em;
-  height: 2em;
-}
+.guestbook-label { display: block; }
+.guestbook-input { display: block; margin-bottom: 0.5em; }
+.guestbook-textarea { display: block; box-sizing: border-box; max-width: 100%; margin-bottom: 0.5em; }
+.guestbook-button { display: block; margin-top: 1em; margin-bottom: 1.5em; }
 
 /* Entries */
-.entry-header {}
-.entry-date {}
-.entry-name {}
-.entry-website {}
-.entry-body {}
-.entry-separator {}
+.entry { margin: 0.5em 0; }
+.entry-header { margin-bottom: 0.2em; }
+.entry-body { white-space: pre-wrap; }
 ```
 
 ---

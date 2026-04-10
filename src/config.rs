@@ -11,6 +11,12 @@ pub struct Config {
     pub telegram_bot_token: Option<String>,
     #[cfg(feature = "telegram")]
     pub telegram_chat_id: Option<i64>,
+    #[cfg(feature = "telegram")]
+    pub telegram_retry_interval: u64,
+    #[cfg(feature = "telegram")]
+    pub telegram_retry_limit: u32,
+    #[cfg(feature = "telegram")]
+    pub telegram_reminder_interval: u64,
     pub enable_honeypot: bool,
     pub max_name_length: usize,
     pub max_message_length: usize,
@@ -75,6 +81,21 @@ impl Config {
                 .ok()
                 .map(|v| v.parse().map_err(|_| "BOOK_TELEGRAM_CHAT_ID must be an integer"))
                 .transpose()?,
+            #[cfg(feature = "telegram")]
+            telegram_retry_interval: env::var("BOOK_TELEGRAM_RETRY_INTERVAL")
+                .unwrap_or_else(|_| "20".into())
+                .parse()
+                .map_err(|_| "BOOK_TELEGRAM_RETRY_INTERVAL must be a number")?,
+            #[cfg(feature = "telegram")]
+            telegram_retry_limit: env::var("BOOK_TELEGRAM_RETRY_LIMIT")
+                .unwrap_or_else(|_| "3".into())
+                .parse()
+                .map_err(|_| "BOOK_TELEGRAM_RETRY_LIMIT must be a number")?,
+            #[cfg(feature = "telegram")]
+            telegram_reminder_interval: env::var("BOOK_TELEGRAM_REMINDER_INTERVAL")
+                .unwrap_or_else(|_| "86400".into())
+                .parse()
+                .map_err(|_| "BOOK_TELEGRAM_REMINDER_INTERVAL must be a number")?,
             enable_honeypot: env::var("BOOK_ENABLE_HONEYPOT")
                 .map(|v| v != "false")
                 .unwrap_or(true),

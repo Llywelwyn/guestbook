@@ -1,6 +1,7 @@
 use std::path::PathBuf;
 
 use teloxide::prelude::*;
+use teloxide::types::ParseMode;
 use tokio::sync::mpsc::Receiver;
 
 use crate::entries::{self, Entry, Status};
@@ -21,37 +22,126 @@ fn format_entry_list(entries: &[Entry], status_label: &str) -> String {
     lines.join("\n")
 }
 
-/// Send a notification to Telegram about a new entry.
-async fn notify(bot: &Bot, chat_id: ChatId, entry: &Entry) {
-    let text = format!(
-        "New guestbook entry:\n\nName: {}\nWebsite: {}\n\n{}\n\n/allow_{}\n/deny_{}",
-        entry.meta.name, entry.meta.website, entry.body, entry.id, entry.id
-    );
-    if let Err(e) = bot.send_message(chat_id, &text).await {
-        tracing::error!("failed to send telegram message: {e}");
+/// Escape special characters for Telegram MarkdownV2.
+fn escape_md(s: &str) -> String {
+    let special = ['_', '*', '[', ']', '(', ')', '~', '`', '>', '#', '+', '-', '=', '|', '{', '}', '.', '!'];
+    let mut out = String::with_capacity(s.len());
+    for c in s.chars() {
+        if special.contains(&c) {
+            out.push('\\');
+        }
+        out.push(c);
     }
+    out
+}
+
+/// Format a bot command, escaping underscores for MarkdownV2.
+fn cmd(name: &str, id: &str) -> String {
+    format!("/{}\\_{}", name, id)
+}
+
+/// Format an entry as a Telegram message with bold headers and contextual commands.
+fn format_entry_message(entry: &Entry) -> String {
+    let mut parts = Vec::new();
+
+    parts.push(format!("*Name*\n{}", escape_md(&entry.meta.name)));
+
+    if !entry.meta.website.is_empty() {
+        parts.push(format!("*Website*\n{}", escape_md(&entry.meta.website)));
+    }
+
+    parts.push(format!("*Message*\n{}", escape_md(&entry.body)));
+
+    // Attached media commands
+    let has_drawing = !entry.meta.drawing.is_empty();
+    let has_voice = !entry.meta.voice_note.is_empty();
+    if has_drawing || has_voice {
+        let mut attached = vec!["*Attached*".to_string()];
+        if has_drawing {
+            attached.push(cmd("drawing", &entry.id));
+        }
+        if has_voice {
+            attached.push(cmd("voice\\_note", &entry.id));
+        }
+        parts.push(attached.join("\n"));
+    }
+
+    // Moderation section with status and contextual commands
+    let status_text = match entry.meta.status {
+        Status::Pending => "Currently pending\\.",
+        Status::Approved => "Currently approved\\.",
+        Status::Denied => "Currently denied\\.",
+    };
+    let commands = match entry.meta.status {
+        Status::Pending => format!("{}\n{}", cmd("allow", &entry.id), cmd("deny", &entry.id)),
+        Status::Approved => format!("{}\n{}", cmd("deny", &entry.id), cmd("reply", &entry.id)),
+        Status::Denied => format!("{}\n{}", cmd("allow", &entry.id), cmd("delete", &entry.id)),
+    };
+    parts.push(format!("*Moderation*\n{status_text}\n\n{commands}"));
+
+    parts.join("\n\n")
+}
+
+/// Send a formatted message with Markdown parsing.
+async fn send_md(bot: &Bot, chat_id: ChatId, text: &str) -> Result<Message, teloxide::RequestError> {
+    bot.send_message(chat_id, text)
+        .parse_mode(ParseMode::MarkdownV2)
+        .await
+}
+
+/// Send a notification about a new entry, retrying on failure.
+async fn notify(bot: &Bot, chat_id: ChatId, entry: &Entry, retry_interval: u64, retry_limit: u32) {
+    let text = format_entry_message(entry);
+    if send_md(bot, chat_id, &text).await.is_ok() {
+        return;
+    }
+    tracing::warn!("failed to send notification for entry {}, spawning retry task", entry.id);
+    let bot = bot.clone();
+    let id = entry.id.clone();
+    let text = text.clone();
+    tokio::spawn(async move {
+        for attempt in 1..=retry_limit {
+            tokio::time::sleep(std::time::Duration::from_secs(retry_interval)).await;
+            tracing::info!("retry {attempt}/{retry_limit} for entry {id}");
+            match send_md(&bot, chat_id, &text).await {
+                Ok(_) => {
+                    tracing::info!("retry succeeded for entry {id}");
+                    return;
+                }
+                Err(e) => {
+                    tracing::warn!("retry {attempt}/{retry_limit} failed for entry {id}: {e}");
+                }
+            }
+        }
+        tracing::error!("all {retry_limit} retries exhausted for entry {id}");
+    });
 }
 
 /// Listen for new entries on the channel and send Telegram notifications.
-pub async fn notification_task(bot: Bot, chat_id: ChatId, mut rx: Receiver<(Entry, Option<Vec<u8>>, Option<Vec<u8>>)>) {
-    while let Some((entry, drawing_bytes, voice_bytes)) = rx.recv().await {
-        notify(&bot, chat_id, &entry).await;
-        if let Some(bytes) = drawing_bytes {
-            if let Err(e) = bot.send_photo(
-                chat_id,
-                teloxide::types::InputFile::memory(bytes).file_name("drawing.png"),
-            ).await {
-                tracing::error!("failed to send drawing photo: {e}");
+pub async fn notification_task(
+    bot: Bot,
+    chat_id: ChatId,
+    mut rx: Receiver<(Entry, Option<Vec<u8>>, Option<Vec<u8>>)>,
+    retry_interval: u64,
+    retry_limit: u32,
+) {
+    while let Some((entry, _drawing_bytes, _voice_bytes)) = rx.recv().await {
+        notify(&bot, chat_id, &entry, retry_interval, retry_limit).await;
+    }
+}
+
+/// Periodically check for pending entries and send a reminder.
+pub async fn reminder_task(bot: Bot, chat_id: ChatId, data_dir: PathBuf, interval_secs: u64) {
+    let entries_dir = data_dir.join("entries");
+    loop {
+        let pending = entries::read_by_status(&entries_dir, Status::Pending);
+        if !pending.is_empty() {
+            let text = format!("📬 *Pending reminder*\n\n{}", escape_md(&format_entry_list(&pending, "pending")));
+            if let Err(e) = send_md(&bot, chat_id, &text).await {
+                tracing::error!("failed to send pending reminder: {e}");
             }
         }
-        if let Some(bytes) = voice_bytes {
-            if let Err(e) = bot.send_voice(
-                chat_id,
-                teloxide::types::InputFile::memory(bytes).file_name("voice_note.webm"),
-            ).await {
-                tracing::error!("failed to send voice note: {e}");
-            }
-        }
+        tokio::time::sleep(std::time::Duration::from_secs(interval_secs)).await;
     }
 }
 
@@ -69,7 +159,6 @@ pub async fn bot_task(bot: Bot, chat_id: ChatId, data_dir: PathBuf) {
     let handler = Update::filter_message().endpoint(
         |bot: Bot, msg: Message, data_dir: PathBuf, chat_id: ChatId| async move {
             let text = msg.text().unwrap_or("");
-            // Only respond to the configured chat
             if msg.chat.id != chat_id {
                 return respond(());
             }
@@ -79,8 +168,7 @@ pub async fn bot_task(bot: Bot, chat_id: ChatId, data_dir: PathBuf) {
             if let Some(id) = text.strip_prefix("/allow_") {
                 match entries::set_status(&entries_dir, id, Status::Approved) {
                     Ok(name) => {
-                        bot.send_message(msg.chat.id, format!("Approved ({name})."))
-                            .await?;
+                        send_md(&bot, msg.chat.id, &format!("Approved \\({}\\)\\.\n{}", escape_md(&name), cmd("reply", id))).await?;
                     }
                     Err(e) => {
                         bot.send_message(msg.chat.id, e).await?;
@@ -89,8 +177,7 @@ pub async fn bot_task(bot: Bot, chat_id: ChatId, data_dir: PathBuf) {
             } else if let Some(id) = text.strip_prefix("/deny_") {
                 match entries::set_status(&entries_dir, id, Status::Denied) {
                     Ok(name) => {
-                        bot.send_message(msg.chat.id, format!("Denied ({name}).\n/delete_{id}"))
-                            .await?;
+                        send_md(&bot, msg.chat.id, &format!("Denied \\({}\\)\\.\n{}", escape_md(&name), cmd("delete", id))).await?;
                     }
                     Err(e) => {
                         bot.send_message(msg.chat.id, e).await?;
@@ -108,34 +195,48 @@ pub async fn bot_task(bot: Bot, chat_id: ChatId, data_dir: PathBuf) {
             } else if let Some(id) = text.strip_prefix("/view_") {
                 match entries::find_entry(&entries_dir, id) {
                     Ok(entry) => {
-                        let text = format!(
-                            "Entry ({:?}):\n\nName: {}\nWebsite: {}\nDate: {}\n\n{}\n\n/allow_{}\n/deny_{}",
-                            entry.meta.status, entry.meta.name, entry.meta.website,
-                            entry.meta.date, entry.body, entry.id, entry.id
-                        );
-                        bot.send_message(msg.chat.id, &text).await?;
-
-                        // Send drawing if present
-                        if !entry.meta.drawing.is_empty() {
-                            let drawing_path = data_dir.join("drawings").join(&entry.meta.drawing);
-                            if let Ok(bytes) = std::fs::read(&drawing_path) {
-                                bot.send_photo(
-                                    msg.chat.id,
-                                    teloxide::types::InputFile::memory(bytes).file_name("drawing.png"),
-                                ).await.ok();
-                            }
+                        let text = format_entry_message(&entry);
+                        send_md(&bot, msg.chat.id, &text).await?;
+                    }
+                    Err(e) => {
+                        bot.send_message(msg.chat.id, e).await?;
+                    }
+                }
+            } else if let Some(id) = text.strip_prefix("/drawing_") {
+                match entries::find_entry(&entries_dir, id) {
+                    Ok(entry) if !entry.meta.drawing.is_empty() => {
+                        let drawing_path = data_dir.join("drawings").join(&entry.meta.drawing);
+                        if let Ok(bytes) = std::fs::read(&drawing_path) {
+                            bot.send_photo(
+                                msg.chat.id,
+                                teloxide::types::InputFile::memory(bytes).file_name("drawing.png"),
+                            ).await?;
+                        } else {
+                            bot.send_message(msg.chat.id, "Drawing file not found.").await?;
                         }
-
-                        // Send voice note if present
-                        if !entry.meta.voice_note.is_empty() {
-                            let vn_path = data_dir.join("voice_notes").join(&entry.meta.voice_note);
-                            if let Ok(bytes) = std::fs::read(&vn_path) {
-                                bot.send_voice(
-                                    msg.chat.id,
-                                    teloxide::types::InputFile::memory(bytes).file_name("voice_note.webm"),
-                                ).await.ok();
-                            }
+                    }
+                    Ok(_) => {
+                        bot.send_message(msg.chat.id, "No drawing attached.").await?;
+                    }
+                    Err(e) => {
+                        bot.send_message(msg.chat.id, e).await?;
+                    }
+                }
+            } else if let Some(id) = text.strip_prefix("/voice_note_") {
+                match entries::find_entry(&entries_dir, id) {
+                    Ok(entry) if !entry.meta.voice_note.is_empty() => {
+                        let vn_path = data_dir.join("voice_notes").join(&entry.meta.voice_note);
+                        if let Ok(bytes) = std::fs::read(&vn_path) {
+                            bot.send_voice(
+                                msg.chat.id,
+                                teloxide::types::InputFile::memory(bytes).file_name("voice_note.webm"),
+                            ).await?;
+                        } else {
+                            bot.send_message(msg.chat.id, "Voice note file not found.").await?;
                         }
+                    }
+                    Ok(_) => {
+                        bot.send_message(msg.chat.id, "No voice note attached.").await?;
                     }
                     Err(e) => {
                         bot.send_message(msg.chat.id, e).await?;
@@ -145,8 +246,7 @@ pub async fn bot_task(bot: Bot, chat_id: ChatId, data_dir: PathBuf) {
                 let (id, reply) = match rest.split_once('\n') {
                     Some((id, reply)) => (id.trim(), reply),
                     None => {
-                        bot.send_message(msg.chat.id, "Usage: /reply_ID\\nYour reply text")
-                            .await?;
+                        bot.send_message(msg.chat.id, "Usage: /reply_ID\nYour reply text").await?;
                         return respond(());
                     }
                 };
@@ -163,10 +263,22 @@ pub async fn bot_task(bot: Bot, chat_id: ChatId, data_dir: PathBuf) {
                         bot.send_message(msg.chat.id, e).await?;
                     }
                 }
-            } else if let Some(id) = text.strip_prefix("/delete_") {
+            } else if let Some(id) = text.strip_prefix("/confirm_delete_") {
                 match entries::delete_entry(&data_dir, id) {
                     Ok(name) => {
                         bot.send_message(msg.chat.id, format!("Deleted ({name}).")).await?;
+                    }
+                    Err(e) => {
+                        bot.send_message(msg.chat.id, e).await?;
+                    }
+                }
+            } else if let Some(id) = text.strip_prefix("/delete_") {
+                match entries::find_entry(&entries_dir, id) {
+                    Ok(entry) => {
+                        bot.send_message(
+                            msg.chat.id,
+                            format!("Delete {}'s entry? This cannot be undone.\n\n/confirm_delete_{}", entry.meta.name, entry.id),
+                        ).await?;
                     }
                     Err(e) => {
                         bot.send_message(msg.chat.id, e).await?;

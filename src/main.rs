@@ -29,7 +29,16 @@ async fn main() {
                 let bot = Bot::new(token);
 
                 let notify_bot = bot.clone();
-                tokio::spawn(telegram::notification_task(notify_bot, chat_id, _rx));
+                let retry_interval = config.telegram_retry_interval;
+                let retry_limit = config.telegram_retry_limit;
+                tokio::spawn(telegram::notification_task(notify_bot, chat_id, _rx, retry_interval, retry_limit));
+
+                let reminder_interval = config.telegram_reminder_interval;
+                if reminder_interval > 0 {
+                    let reminder_bot = bot.clone();
+                    let reminder_data_dir = config.data_dir.clone();
+                    tokio::spawn(telegram::reminder_task(reminder_bot, chat_id, reminder_data_dir, reminder_interval));
+                }
 
                 let cmd_data_dir = config.data_dir.clone();
                 tokio::spawn(telegram::bot_task(bot, chat_id, cmd_data_dir));

@@ -358,6 +358,9 @@ mod tests {
             telegram_bot_token: None,
             #[cfg(feature = "telegram")]
             telegram_chat_id: None,
+            telegram_retry_interval: 20,
+            telegram_retry_limit: 3,
+            telegram_reminder_interval: 86400,
             enable_honeypot: true,
             max_name_length: 0,
             max_message_length: 0,

@@ -135,6 +135,26 @@ in
           type = types.int;
           description = "Telegram chat ID for moderation messages.";
         };
+
+        retry = {
+          interval = mkOption {
+            type = types.int;
+            default = 20;
+            description = "Seconds between retry attempts for failed Telegram notifications.";
+          };
+
+          limit = mkOption {
+            type = types.int;
+            default = 3;
+            description = "Maximum number of retry attempts for failed Telegram notifications.";
+          };
+        };
+
+        reminderInterval = mkOption {
+          type = types.int;
+          default = 86400;
+          description = "Seconds between pending entry reminders. Set to 0 to disable.";
+        };
       };
 
       security = {
@@ -322,6 +342,9 @@ in
           BOOK_SUCCESS_TEMPLATE = cfg.styles.successTemplateFile;
         } // lib.optionalAttrs cfg.features.telegram.enable {
           BOOK_TELEGRAM_CHAT_ID = toString cfg.features.telegram.chatId;
+          BOOK_TELEGRAM_RETRY_INTERVAL = toString cfg.features.telegram.retry.interval;
+          BOOK_TELEGRAM_RETRY_LIMIT = toString cfg.features.telegram.retry.limit;
+          BOOK_TELEGRAM_REMINDER_INTERVAL = toString cfg.features.telegram.reminderInterval;
         };
         serviceConfig = {
           Type = "simple";
