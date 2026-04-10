@@ -286,8 +286,16 @@ fn render_entry(entry: &Entry, config: &Config) -> String {
     } else {
         String::new()
     };
+    let voice_note_html = if !entry.meta.voice_note.is_empty() {
+        format!(
+            "\n<span class=\"entry-voice-note\"><audio controls preload=\"metadata\" src=\"/voice_notes/{}\"></audio></span>",
+            escape_html(&entry.meta.voice_note)
+        )
+    } else {
+        String::new()
+    };
     format!(
-        "\n{header}\n{drawing_html}\n<span class=\"entry-body\">{body}</span>\n\n<span class=\"entry-separator\">{}</span>\n",
+        "\n{header}\n{drawing_html}{voice_note_html}\n<span class=\"entry-body\">{body}</span>\n\n<span class=\"entry-separator\">{}</span>\n",
         config.separator
     )
 }
@@ -591,6 +599,37 @@ mod tests {
         assert!(html.contains("Name and message are required."));
         assert!(html.contains("back"));
         assert!(html.contains("<style>"));
+    }
+
+    #[test]
+    fn test_render_entry_with_voice_note() {
+        let config = test_config();
+        let mut entry = make_entry("alice", "2026-04-10", "Hello!");
+        entry.meta.voice_note = "1744300800_abcd1234.webm".into();
+        let form = render_form(&config);
+        let html = render_page(DEFAULT_TEMPLATE, &config, &[entry], &form);
+        assert!(html.contains(r#"<audio controls preload="metadata" src="/voice_notes/1744300800_abcd1234.webm">"#));
+    }
+
+    #[test]
+    fn test_render_entry_voice_note_works_without_html_injection() {
+        let mut config = test_config();
+        config.enable_html_injection = false;
+        let mut entry = make_entry("alice", "2026-04-10", "<script>xss</script>");
+        entry.meta.voice_note = "1744300800_abcd1234.webm".into();
+        let form = render_form(&config);
+        let html = render_page(DEFAULT_TEMPLATE, &config, &[entry], &form);
+        assert!(html.contains(r#"<audio controls preload="metadata" src="/voice_notes/1744300800_abcd1234.webm">"#));
+        assert!(html.contains("&lt;script&gt;"));
+    }
+
+    #[test]
+    fn test_render_entry_without_voice_note() {
+        let config = test_config();
+        let entry = make_entry("alice", "2026-04-10", "Hello!");
+        let form = render_form(&config);
+        let html = render_page(DEFAULT_TEMPLATE, &config, &[entry], &form);
+        assert!(!html.contains("<audio"));
     }
 
     #[test]
