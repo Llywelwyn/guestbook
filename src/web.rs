@@ -1043,4 +1043,44 @@ mod tests {
         let (status, _) = get_path(&app, "/voice_notes/../entries/secret.txt").await;
         assert_eq!(status, StatusCode::NOT_FOUND);
     }
+
+    #[tokio::test]
+    async fn test_voice_note_full_roundtrip() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut config = test_config(dir.path());
+        config.enable_voice_notes = true;
+        let (app, _rx) = test_app(config);
+
+        // Submit with a voice note
+        let webm = fake_webm();
+        let voice_data = base64::engine::general_purpose::STANDARD.encode(&webm);
+        let data_url = format!("data:audio/webm;codecs=opus;base64,{voice_data}");
+        let body = format!(
+            "name=alice&message=hello&voice_note={}",
+            urlencoding::encode(&data_url)
+        );
+        post_form(&app, &body).await;
+
+        // Approve the entry
+        let entries_dir = dir.path().join("entries");
+        let entry_file = std::fs::read_dir(&entries_dir).unwrap().next().unwrap().unwrap();
+        let content = std::fs::read_to_string(entry_file.path()).unwrap();
+        let id = entry_file.path().file_stem().unwrap().to_str().unwrap().to_string();
+        let mut entry = entries::Entry::parse(&id, &content).unwrap();
+        entry.meta.status = entries::Status::Approved;
+        std::fs::write(entry_file.path(), entry.to_file_contents()).unwrap();
+
+        let vn_filename = entry.meta.voice_note.clone();
+        assert!(!vn_filename.is_empty(), "entry should have a voice_note filename");
+
+        // Verify index shows the voice note
+        let html = get_index(&app).await;
+        assert!(html.contains("entry-voice-note"));
+        assert!(html.contains(&format!("/voice_notes/{vn_filename}")));
+
+        // Verify the voice note file is served
+        let (status, bytes) = get_path(&app, &format!("/voice_notes/{vn_filename}")).await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(bytes, webm);
+    }
 }
