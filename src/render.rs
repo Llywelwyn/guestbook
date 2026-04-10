@@ -23,7 +23,7 @@ pub fn render_page(template: &str, config: &Config, entries: &[Entry], form_html
 pub fn render_form(config: &Config) -> String {
     let website_section = if config.enable_website_links {
         format!(
-            "\n<label class=\"guestbook-label\">{}</label>\n<input class=\"guestbook-input\" name=\"website\">\n",
+            "\n<label class=\"guestbook-label\" for=\"website\">{}</label>\n<input class=\"guestbook-input\" id=\"website\" name=\"website\">\n",
             config.label_website
         )
     } else {
@@ -32,7 +32,7 @@ pub fn render_form(config: &Config) -> String {
 
     let captcha_section = if config.enable_captcha {
         format!(
-            "\n<label class=\"guestbook-label\">{}</label>\n<input class=\"guestbook-input\" name=\"captcha\" required>\n",
+            "\n<label class=\"guestbook-label\" for=\"captcha\">{}</label>\n<input class=\"guestbook-input\" id=\"captcha\" name=\"captcha\" required>\n",
             config.captcha_question
         )
     } else {
@@ -176,11 +176,11 @@ pub fn render_form(config: &Config) -> String {
     format!(
         r#"<span class="guestbook-prompt">{prompt}</span>
 <form class="guestbook-form" method="post" action="/submit" accept-charset="UTF-8">
-<label class="guestbook-label">{label_name}</label>
-<input class="guestbook-input" name="name" required>
+<label class="guestbook-label" for="name">{label_name}</label>
+<input class="guestbook-input" id="name" name="name" required>
 {website_section}
-<label class="guestbook-label">{label_message}</label>
-<textarea class="guestbook-textarea" name="message" style="width:{tw}px;height:{th}px" required></textarea>
+<label class="guestbook-label" for="message">{label_message}</label>
+<textarea class="guestbook-textarea" id="message" name="message" style="width:{tw}px;height:{th}px" required></textarea>
 {captcha_section}
 {drawing_section}{voice_note_section}<input name="url" style="display:none" tabindex="-1" autocomplete="off"><button class="guestbook-button" type="submit">{button}</button>
 </form>"#,
