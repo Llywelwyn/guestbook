@@ -208,7 +208,7 @@ in
       css = mkOption {
         type = types.str;
         default = "";
-        description = "Custom CSS injected into a style tag. Use class names: .guestbook-form, .guestbook-prompt, .guestbook-label, .guestbook-input, .guestbook-textarea, .guestbook-button, .guestbook-canvas, .entry-header, .entry-date, .entry-name, .entry-website, .entry-body, .entry-drawing, .entry-separator";
+        description = "Custom CSS injected into a style tag. Use class names: .guestbook-form, .guestbook-prompt, .guestbook-label, .guestbook-input, .guestbook-textarea, .guestbook-button, .guestbook-canvas, .entry, .entry-header, .entry-date, .entry-name, .entry-website, .entry-body, .entry-drawing";
       };
 
       cssFile = mkOption {
@@ -227,12 +227,6 @@ in
         type = types.nullOr types.path;
         default = null;
         description = "Custom success page template with {{title}} and {{style}} placeholders. Uses built-in default if null.";
-      };
-
-      separator = mkOption {
-        type = types.str;
-        default = "------------------------------------------------------------";
-        description = "Separator between guestbook entries.";
       };
 
       greeting = mkOption {
@@ -308,7 +302,6 @@ in
           BOOK_MAX_NAME_LENGTH = toString cfg.limits.name;
           BOOK_MAX_MESSAGE_LENGTH = toString cfg.limits.message;
           BOOK_MAX_WEBSITE_LENGTH = toString cfg.limits.website;
-          BOOK_SEPARATOR = cfg.styles.separator;
           BOOK_STYLE = cfg.styles.css;
           BOOK_FORM_PROMPT = cfg.styles.greeting;
           BOOK_BUTTON_TEXT = cfg.styles.labels.submit;

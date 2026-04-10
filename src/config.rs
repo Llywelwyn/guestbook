@@ -30,7 +30,6 @@ pub struct Config {
     pub voice_note_max_duration: u32,
     pub template: Option<String>,
     pub success_template: Option<String>,
-    pub separator: String,
     pub style: String,
     pub form_prompt: String,
     pub button_text: String,
@@ -131,8 +130,6 @@ impl Config {
                 .unwrap_or_else(|_| "20".into())
                 .parse()
                 .map_err(|_| "BOOK_VOICE_NOTE_MAX_DURATION must be a number")?,
-            separator: env::var("BOOK_SEPARATOR")
-                .unwrap_or_else(|_| "------------------------------------------------------------".into()),
             template: env::var("BOOK_TEMPLATE").ok().map(|path| {
                 std::fs::read_to_string(&path)
                     .unwrap_or_else(|e| panic!("failed to read template {path}: {e}"))

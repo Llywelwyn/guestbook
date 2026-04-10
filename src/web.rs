@@ -368,7 +368,6 @@ mod tests {
             voice_note_max_duration: 20,
             template: None,
             success_template: None,
-            separator: "---".into(),
             style: String::new(),
             form_prompt: "Thanks for visiting. Sign the guestbook!".into(),
             button_text: "sign".into(),

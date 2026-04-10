@@ -238,9 +238,8 @@ pub fn render_error_page(config: &Config, error: &str) -> String {
 </head>
 <body>
 <div class="page-container">
-{error}
-
-<a href="/">&#8592; back</a>
+<p>{error}</p>
+<p><a href="/">&#8592; back</a></p>
 </div>
 </body>
 </html>"#,
@@ -271,7 +270,7 @@ fn render_entry(entry: &Entry, config: &Config) -> String {
         escape_html(&entry.meta.name)
     };
     let mut header = format!(
-        "<span class=\"entry-header\"><span class=\"entry-date\">{}</span> - <span class=\"entry-name\">{}</span>",
+        "<header class=\"entry-header\"><span class=\"entry-date\">{}</span> - <span class=\"entry-name\">{}</span>",
         &entry.meta.date[..10], name
     );
     if config.enable_website_links && !entry.meta.website.is_empty() {
@@ -281,7 +280,7 @@ fn render_entry(entry: &Entry, config: &Config) -> String {
             website, website
         ));
     }
-    header.push_str("</span>");
+    header.push_str("</header>");
     let body = if config.enable_html_injection {
         entry.body.clone()
     } else {
@@ -305,8 +304,7 @@ fn render_entry(entry: &Entry, config: &Config) -> String {
         String::new()
     };
     format!(
-        "\n{header}\n{drawing_html}{voice_note_html}\n<span class=\"entry-body\">{body}</span>\n\n<span class=\"entry-separator\">{}</span>\n",
-        config.separator
+        "<article class=\"entry\">{header}{drawing_html}{voice_note_html}<div class=\"entry-body\">{body}</div></article>"
     )
 }
 
@@ -345,7 +343,6 @@ mod tests {
             voice_note_max_duration: 20,
             template: None,
             success_template: None,
-            separator: "---".into(),
             style: String::new(),
             form_prompt: "Thanks for visiting. Sign the guestbook!".into(),
             button_text: "sign".into(),
@@ -400,7 +397,7 @@ mod tests {
         assert!(html.contains("entry-header"));
         assert!(html.contains("entry-name"));
         assert!(html.contains("entry-body"));
-        assert!(html.contains("entry-separator"));
+        assert!(html.contains("<article class=\"entry\">"));
     }
 
     #[test]
