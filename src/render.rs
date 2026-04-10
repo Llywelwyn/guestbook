@@ -182,7 +182,7 @@ pub fn render_form(config: &Config) -> String {
 <label class="guestbook-label" for="message">{label_message}</label>
 <textarea class="guestbook-textarea" id="message" name="message" style="width:{tw}px;height:{th}px" required></textarea>
 {captcha_section}
-{drawing_section}{voice_note_section}<input name="url" style="display:none" tabindex="-1" autocomplete="off"><button class="guestbook-button" type="submit">{button}</button>
+{drawing_section}{voice_note_section}<input name="url" aria-hidden="true" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0)" tabindex="-1" autocomplete="off"><button class="guestbook-button" type="submit">{button}</button>
 </form>"#,
         prompt = config.form_prompt,
         label_name = config.label_name,
