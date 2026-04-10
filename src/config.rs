@@ -22,11 +22,9 @@ pub struct Config {
     pub captcha_exact: bool,
     pub captcha_casesensitive: bool,
     pub enable_drawings: bool,
-    pub label_drawing: String,
     pub canvas_width: u32,
     pub canvas_height: u32,
     pub enable_voice_notes: bool,
-    pub label_voice_note: String,
     pub voice_note_max_duration: u32,
     pub template: Option<String>,
     pub success_template: Option<String>,
@@ -114,8 +112,6 @@ impl Config {
             enable_drawings: env::var("BOOK_ENABLE_DRAWINGS")
                 .map(|v| v != "false")
                 .unwrap_or(false),
-            label_drawing: env::var("BOOK_LABEL_DRAWING")
-                .unwrap_or_else(|_| "Draw (optional):".into()),
             canvas_width: env::var("BOOK_CANVAS_WIDTH")
                 .unwrap_or_else(|_| "400".into())
                 .parse()
@@ -127,8 +123,6 @@ impl Config {
             enable_voice_notes: env::var("BOOK_ENABLE_VOICE_NOTES")
                 .map(|v| v != "false")
                 .unwrap_or(false),
-            label_voice_note: env::var("BOOK_LABEL_VOICE_NOTE")
-                .unwrap_or_else(|_| "Voice note (optional):".into()),
             voice_note_max_duration: env::var("BOOK_VOICE_NOTE_MAX_DURATION")
                 .unwrap_or_else(|_| "20".into())
                 .parse()
@@ -301,7 +295,6 @@ mod tests {
         assert_eq!(config.canvas_width, 400);
         assert_eq!(config.canvas_height, 200);
         assert_eq!(config.max_drawing_bytes(), 400 * 200 * 4);
-        assert_eq!(config.label_drawing, "Draw (optional):");
     }
 
     #[test]
@@ -315,7 +308,6 @@ mod tests {
         assert!(!config.enable_voice_notes);
         assert_eq!(config.voice_note_max_duration, 20);
         assert_eq!(config.max_voice_note_bytes(), 20 * 10 * 1024);
-        assert_eq!(config.label_voice_note, "Voice note (optional):");
     }
 
     #[test]

@@ -280,7 +280,7 @@ fn render_entry(entry: &Entry, config: &Config) -> String {
     };
     let drawing_html = if !entry.meta.drawing.is_empty() {
         format!(
-            "\n<img class=\"entry-drawing\" src=\"/drawings/{}\">",
+            "<img class=\"entry-drawing\" src=\"/drawings/{}\">",
             escape_html(&entry.meta.drawing)
         )
     } else {
@@ -288,7 +288,7 @@ fn render_entry(entry: &Entry, config: &Config) -> String {
     };
     let voice_note_html = if !entry.meta.voice_note.is_empty() {
         format!(
-            "\n<span class=\"entry-voice-note\"><audio controls preload=\"metadata\" src=\"/voice_notes/{}\"></audio></span>",
+            "<span class=\"entry-voice-note\"><audio controls preload=\"metadata\" src=\"/voice_notes/{}\"></audio></span>",
             escape_html(&entry.meta.voice_note)
         )
     } else {
@@ -327,11 +327,9 @@ mod tests {
             captcha_exact: false,
             captcha_casesensitive: false,
             enable_drawings: false,
-            label_drawing: "Draw (optional):".into(),
             canvas_width: 400,
             canvas_height: 200,
             enable_voice_notes: false,
-            label_voice_note: "Voice note (optional):".into(),
             voice_note_max_duration: 20,
             template: None,
             success_template: None,

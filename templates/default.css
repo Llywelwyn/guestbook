@@ -35,6 +35,10 @@
 .guestbook-drawing-inline a {
   cursor: pointer;
 }
+.guestbook-drawing-content {
+  display: block;
+  margin-bottom: 1em;
+}
 .guestbook-swatch {
   display: inline-block;
   width: 0.85em;
