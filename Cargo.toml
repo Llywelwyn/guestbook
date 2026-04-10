@@ -2,7 +2,7 @@
 name = "guestbook"
 version = "0.2.3"
 edition = "2021"
-description = "A standalone guestbook to let visitors to your site leave behind written messages, drawings, and voice notes, with spam-prevention and moderation via Telegram bot."
+description = "A self-hosted guestbook page to let visitors to your site leave behind written messages, drawings, and voice notes, with spam-prevention and moderation via Telegram bot."
 license = "MIT"
 repository = "https://git.ily.rs/lew/guestbook"
 
