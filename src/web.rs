@@ -2,7 +2,8 @@ use axum::{
     extract::DefaultBodyLimit,
     extract::Path as AxumPath,
     extract::State,
-    http::{header, StatusCode},
+    http::{header, HeaderValue, StatusCode},
+    middleware::{self, Next},
     response::{Html, IntoResponse, Response},
     routing::{get, post},
     Form, Router,
@@ -44,7 +45,22 @@ pub fn router(state: Arc<AppState>) -> Router {
         .route("/drawings/{filename}", get(serve_drawing))
         .route("/voice_notes/{filename}", get(serve_voice_note))
         .layer(DefaultBodyLimit::max(2 * 1024 * 1024))
+        .layer(middleware::from_fn(security_headers))
         .with_state(state)
+}
+
+async fn security_headers(req: axum::extract::Request, next: Next) -> Response {
+    let is_static = req.uri().path().starts_with("/drawings/")
+        || req.uri().path().starts_with("/voice_notes/");
+    let mut res = next.run(req).await;
+    let h = res.headers_mut();
+    if is_static {
+        h.insert(header::CACHE_CONTROL, HeaderValue::from_static("public, max-age=31536000, immutable"));
+    } else {
+        h.insert(header::CACHE_CONTROL, HeaderValue::from_static("no-cache"));
+    }
+    h.insert(header::X_FRAME_OPTIONS, HeaderValue::from_static("DENY"));
+    res
 }
 
 async fn index(State(state): State<Arc<AppState>>) -> Html<String> {
