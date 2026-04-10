@@ -5,6 +5,22 @@ use tokio::sync::mpsc::Receiver;
 
 use crate::entries::{self, Entry, Status};
 
+fn format_entry_list(entries: &[Entry], status_label: &str) -> String {
+    if entries.is_empty() {
+        return format!("No {status_label} entries.");
+    }
+    let mut lines = vec![format!("{} {}:", entries.len(), status_label)];
+    for entry in entries {
+        let preview: String = entry.body.chars().take(30).collect();
+        let ellipsis = if entry.body.chars().count() > 30 { "..." } else { "" };
+        lines.push(format!(
+            "- {} ({}) \"{}{}\"\n  /view_{}",
+            entry.meta.name, entry.meta.date, preview, ellipsis, entry.short_id()
+        ));
+    }
+    lines.join("\n")
+}
+
 /// Send a notification to Telegram about a new entry.
 async fn notify(bot: &Bot, chat_id: ChatId, entry: &Entry) {
     let short_id = entry.short_id();
@@ -72,6 +88,15 @@ pub async fn bot_task(bot: Bot, chat_id: ChatId, data_dir: PathBuf) {
                         bot.send_message(msg.chat.id, e).await?;
                     }
                 }
+            } else if text == "/pending" {
+                let list = entries::read_by_status(&entries_dir, entries::Status::Pending);
+                bot.send_message(msg.chat.id, format_entry_list(&list, "pending")).await?;
+            } else if text == "/approved" {
+                let list = entries::read_by_status(&entries_dir, entries::Status::Approved);
+                bot.send_message(msg.chat.id, format_entry_list(&list, "approved")).await?;
+            } else if text == "/denied" {
+                let list = entries::read_by_status(&entries_dir, entries::Status::Denied);
+                bot.send_message(msg.chat.id, format_entry_list(&list, "denied")).await?;
             }
 
             Ok(())
