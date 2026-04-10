@@ -12,8 +12,14 @@
       let
         pkgs = nixpkgs.legacyPackages.${system};
         craneLib = crane.mkLib pkgs;
+        templateFilter = path: _type: builtins.match ".*templates/.*" path != null;
+        src = pkgs.lib.cleanSourceWith {
+          src = ./.;
+          filter = path: type:
+            (templateFilter path type) || (craneLib.filterCargoSources path type);
+        };
         guestbook = craneLib.buildPackage {
-          src = craneLib.cleanCargoSource ./.;
+          inherit src;
           buildInputs = with pkgs; [ openssl ];
           nativeBuildInputs = with pkgs; [ pkg-config ];
         };
