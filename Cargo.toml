@@ -1,6 +1,6 @@
 [package]
 name = "guestbook"
-version = "0.2.3"
+version = "0.2.4"
 edition = "2021"
 description = "A self-hosted guestbook page to let visitors to your site leave behind written messages, drawings, and voice notes, with spam-prevention and moderation via Telegram bot."
 license = "MIT"
