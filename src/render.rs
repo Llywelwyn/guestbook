@@ -71,11 +71,12 @@ pub fn render_form(config: &Config) -> String {
   }}
   function showCanvas(){{
     inl.innerHTML='';
-    var sw=[{{c:'#000'}},{{c:'#e03131'}},{{c:'#2f9e44'}},{{c:'#1971c2'}}];
+    var sw=[{{c:'#000',n:'black'}},{{c:'#e03131',n:'red'}},{{c:'#2f9e44',n:'green'}},{{c:'#1971c2',n:'blue'}}];
     sw.forEach(function(s,i){{
       var sp=document.createElement('span');
       sp.className='guestbook-swatch'+(i===0?' active':'');
       sp.setAttribute('data-c',s.c);sp.style.background=s.c;
+      sp.setAttribute('role','button');sp.setAttribute('aria-label',s.n);
       sp.addEventListener('click',function(){{
         inl.querySelectorAll('.guestbook-swatch').forEach(function(el){{el.classList.remove('active')}});
         sp.classList.add('active');col=s.c;x.strokeStyle=col;
@@ -83,7 +84,7 @@ pub fn render_form(config: &Config) -> String {
       inl.appendChild(sp);
     }});
     var sl=document.createElement('input');
-    sl.type='range';sl.className='guestbook-size-slider';sl.min='1';sl.max='20';sl.value='5';
+    sl.type='range';sl.className='guestbook-size-slider';sl.min='1';sl.max='20';sl.value='5';sl.setAttribute('aria-label','Brush size');
     sl.addEventListener('input',function(){{sz=parseInt(sl.value);x.lineWidth=sz}});
     inl.appendChild(document.createTextNode(' '));inl.appendChild(sl);
     inl.appendChild(document.createTextNode(' | '));
@@ -96,7 +97,7 @@ pub fn render_form(config: &Config) -> String {
       e.preventDefault();h=[];col='#000';sz=5;d=false;cnt.innerHTML='';hid.value='';setInit();
     }});
     inl.appendChild(disc);
-    c=document.createElement('canvas');c.className='guestbook-canvas';c.width={w};c.height={h};
+    c=document.createElement('canvas');c.className='guestbook-canvas';c.width={w};c.height={h};c.setAttribute('aria-label','Drawing canvas');
     cnt.innerHTML='';cnt.appendChild(c);bindCanvas();
     c.closest('form').addEventListener('submit',function(){{
       var px=new Uint32Array(x.getImageData(0,0,c.width,c.height).data.buffer);
