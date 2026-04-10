@@ -16,7 +16,7 @@ async fn main() {
     let listen = config.listen_addr();
     let entries_dir = config.data_dir.join("entries");
 
-    std::fs::create_dir_all(&entries_dir).ok();
+    std::fs::create_dir_all(&entries_dir).expect("failed to create entries directory");
 
     let (tx, rx) = tokio::sync::mpsc::channel::<(entries::Entry, Option<Vec<u8>>, Option<Vec<u8>>)>(32);
 

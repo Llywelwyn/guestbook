@@ -254,7 +254,10 @@ async fn submit(
     let drawing_filename = if let Some(ref bytes) = drawing_bytes {
         let drawing_name = format!("{prefix}.png");
         let drawings_dir = state.config.data_dir.join("drawings");
-        std::fs::create_dir_all(&drawings_dir).ok();
+        if let Err(e) = std::fs::create_dir_all(&drawings_dir) {
+            tracing::error!("failed to create drawings directory: {e}");
+            return Html(render_error_page(&state.config, "Something went wrong. Please try again."));
+        }
         if let Err(e) = std::fs::write(drawings_dir.join(&drawing_name), bytes) {
             tracing::error!("failed to write drawing: {e}");
             return Html(render_error_page(&state.config, "Something went wrong. Please try again."));
@@ -267,7 +270,10 @@ async fn submit(
     let voice_note_filename = if let Some(ref bytes) = voice_note_bytes {
         let vn_name = format!("{prefix}.webm");
         let vn_dir = state.config.data_dir.join("voice_notes");
-        std::fs::create_dir_all(&vn_dir).ok();
+        if let Err(e) = std::fs::create_dir_all(&vn_dir) {
+            tracing::error!("failed to create voice notes directory: {e}");
+            return Html(render_error_page(&state.config, "Something went wrong. Please try again."));
+        }
         if let Err(e) = std::fs::write(vn_dir.join(&vn_name), bytes) {
             tracing::error!("failed to write voice note: {e}");
             return Html(render_error_page(&state.config, "Something went wrong. Please try again."));
@@ -292,7 +298,10 @@ async fn submit(
 
     // Write to disk
     let entries_dir = state.config.data_dir.join("entries");
-    std::fs::create_dir_all(&entries_dir).ok();
+    if let Err(e) = std::fs::create_dir_all(&entries_dir) {
+        tracing::error!("failed to create entries directory: {e}");
+        return Html(render_error_page(&state.config, "Something went wrong. Please try again."));
+    }
     let path = entries_dir.join(&filename);
     if let Err(e) = std::fs::write(&path, entry.to_file_contents()) {
         tracing::error!("failed to write entry: {e}");
