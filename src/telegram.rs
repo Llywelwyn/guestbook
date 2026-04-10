@@ -97,6 +97,43 @@ pub async fn bot_task(bot: Bot, chat_id: ChatId, data_dir: PathBuf) {
             } else if text == "/denied" {
                 let list = entries::read_by_status(&entries_dir, entries::Status::Denied);
                 bot.send_message(msg.chat.id, format_entry_list(&list, "denied")).await?;
+            } else if let Some(id) = text.strip_prefix("/view_") {
+                match entries::find_entry(&entries_dir, id) {
+                    Ok(entry) => {
+                        let short_id = entry.short_id();
+                        let text = format!(
+                            "Entry ({:?}):\n\nName: {}\nWebsite: {}\nDate: {}\n\n{}\n\n/allow_{}\n/deny_{}\n/delete_{}",
+                            entry.meta.status, entry.meta.name, entry.meta.website,
+                            entry.meta.date, entry.body, short_id, short_id, short_id
+                        );
+                        bot.send_message(msg.chat.id, &text).await?;
+
+                        // Send drawing if present
+                        if !entry.meta.drawing.is_empty() {
+                            let drawing_path = data_dir.join("drawings").join(&entry.meta.drawing);
+                            if let Ok(bytes) = std::fs::read(&drawing_path) {
+                                bot.send_photo(
+                                    msg.chat.id,
+                                    teloxide::types::InputFile::memory(bytes).file_name("drawing.png"),
+                                ).await.ok();
+                            }
+                        }
+
+                        // Send voice note if present
+                        if !entry.meta.voice_note.is_empty() {
+                            let vn_path = data_dir.join("voice_notes").join(&entry.meta.voice_note);
+                            if let Ok(bytes) = std::fs::read(&vn_path) {
+                                bot.send_voice(
+                                    msg.chat.id,
+                                    teloxide::types::InputFile::memory(bytes).file_name("voice_note.webm"),
+                                ).await.ok();
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        bot.send_message(msg.chat.id, e).await?;
+                    }
+                }
             }
 
             Ok(())
