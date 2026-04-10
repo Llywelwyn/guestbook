@@ -50,10 +50,25 @@ in
         description = "Domain for the Caddy virtual host.";
       };
 
-      forwardAuth = mkOption {
-        type = types.nullOr types.str;
-        default = null;
-        description = "URL for forward_auth (e.g. localhost:9090). When set, all requests are authenticated via forward_auth before proxying.";
+      forwardAuth = {
+        enable = mkEnableOption "forward_auth for Caddy";
+
+        address = mkOption {
+          type = types.str;
+          description = "Address of the auth service (e.g. localhost:9090).";
+        };
+
+        uri = mkOption {
+          type = types.str;
+          default = "/api/auth";
+          description = "URI to send auth subrequests to.";
+        };
+
+        copyHeaders = mkOption {
+          type = types.listOf types.str;
+          default = [];
+          description = "Headers to copy from the auth response to the proxied request.";
+        };
       };
     };
 
@@ -317,9 +332,14 @@ in
         };
         serviceConfig = {
           Type = "simple";
+          ExecStartPre = "+${pkgs.writeShellScript "guestbook-prepare" ''
+            mkdir -p ${cfg.dataDir}/entries ${cfg.dataDir}/drawings ${cfg.dataDir}/voice_notes
+            chown -R ${cfg.user}:${cfg.group} ${cfg.dataDir}
+          ''}";
           Restart = "on-failure";
           User = cfg.user;
           Group = cfg.group;
+          ReadWritePaths = [ cfg.dataDir ];
         };
         script = ''
           ${lib.optionalString cfg.features.telegram.enable ''
@@ -328,12 +348,6 @@ in
           exec ${cfg.package}/bin/guestbook
         '';
       };
-
-      systemd.tmpfiles.rules = [
-        "d ${cfg.dataDir}/entries 0755 ${cfg.user} ${cfg.group} -"
-        "d ${cfg.dataDir}/drawings 0755 ${cfg.user} ${cfg.group} -"
-        "d ${cfg.dataDir}/voice_notes 0755 ${cfg.user} ${cfg.group} -"
-      ];
 
       users.users.${cfg.user} = {
         isSystemUser = true;
@@ -346,9 +360,11 @@ in
 
     (mkIf cfg.caddy.enable {
       services.caddy.virtualHosts.${cfg.caddy.domain}.extraConfig = ''
-        ${lib.optionalString (cfg.caddy.forwardAuth != null) ''
-        forward_auth ${cfg.caddy.forwardAuth} {
-            uri /api/auth
+        ${lib.optionalString cfg.caddy.forwardAuth.enable ''
+        forward_auth ${cfg.caddy.forwardAuth.address} {
+            uri ${cfg.caddy.forwardAuth.uri}
+            ${lib.optionalString (cfg.caddy.forwardAuth.copyHeaders != [])
+              "copy_headers ${lib.concatStringsSep " " cfg.caddy.forwardAuth.copyHeaders}"}
         }
         ''}
         reverse_proxy localhost:${toString cfg.port}
