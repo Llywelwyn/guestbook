@@ -170,15 +170,15 @@ async fn submit(
         return Html(render_error_page(&state.config, "Name and message are required."));
     }
     let max_name = state.config.max_name_length;
-    if max_name > 0 && name.len() > max_name {
+    if max_name > 0 && name.chars().count() > max_name {
         return Html(render_error_page(&state.config, &format!("Name is too long (max {max_name} chars).")));
     }
     let max_web = state.config.max_website_length;
-    if max_web > 0 && website.len() > max_web {
+    if max_web > 0 && website.chars().count() > max_web {
         return Html(render_error_page(&state.config, &format!("Website is too long (max {max_web} chars).")));
     }
     let max_msg = state.config.max_message_length;
-    if max_msg > 0 && message.len() > max_msg {
+    if max_msg > 0 && message.chars().count() > max_msg {
         return Html(render_error_page(&state.config, &format!("Message is too long (max {max_msg} chars).")));
     }
 
