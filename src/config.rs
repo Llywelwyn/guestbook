@@ -25,6 +25,9 @@ pub struct Config {
     pub label_drawing: String,
     pub canvas_width: u32,
     pub canvas_height: u32,
+    pub enable_voice_notes: bool,
+    pub label_voice_note: String,
+    pub voice_note_max_duration: u32,
     pub template: Option<String>,
     pub success_template: Option<String>,
     pub separator: String,
@@ -47,6 +50,12 @@ impl Config {
     /// Any valid PNG from the configured canvas will be smaller than this.
     pub fn max_drawing_bytes(&self) -> usize {
         self.canvas_width as usize * self.canvas_height as usize * 4
+    }
+
+    /// Maximum voice note file size: duration * 10KB.
+    /// Generous cap — real WebM/Opus clips are much smaller.
+    pub fn max_voice_note_bytes(&self) -> usize {
+        self.voice_note_max_duration as usize * 10 * 1024
     }
 
     pub fn from_env() -> Result<Self, String> {
@@ -115,6 +124,15 @@ impl Config {
                 .unwrap_or_else(|_| "200".into())
                 .parse()
                 .map_err(|_| "BOOK_CANVAS_HEIGHT must be a number")?,
+            enable_voice_notes: env::var("BOOK_ENABLE_VOICE_NOTES")
+                .map(|v| v != "false")
+                .unwrap_or(false),
+            label_voice_note: env::var("BOOK_LABEL_VOICE_NOTE")
+                .unwrap_or_else(|_| "Voice note (optional):".into()),
+            voice_note_max_duration: env::var("BOOK_VOICE_NOTE_MAX_DURATION")
+                .unwrap_or_else(|_| "20".into())
+                .parse()
+                .map_err(|_| "BOOK_VOICE_NOTE_MAX_DURATION must be a number")?,
             separator: env::var("BOOK_SEPARATOR")
                 .unwrap_or_else(|_| "------------------------------------------------------------".into()),
             template: env::var("BOOK_TEMPLATE").ok().map(|path| {
@@ -284,6 +302,20 @@ mod tests {
         assert_eq!(config.canvas_height, 200);
         assert_eq!(config.max_drawing_bytes(), 400 * 200 * 4);
         assert_eq!(config.label_drawing, "Draw (optional):");
+    }
+
+    #[test]
+    fn test_enable_voice_notes_default() {
+        let _lock = ENV_LOCK.lock().unwrap();
+        env::remove_var("BOOK_ENABLE_VOICE_NOTES");
+        env::remove_var("BOOK_TELEGRAM_BOT_TOKEN");
+        env::remove_var("BOOK_TELEGRAM_CHAT_ID");
+
+        let config = Config::from_env().unwrap();
+        assert!(!config.enable_voice_notes);
+        assert_eq!(config.voice_note_max_duration, 20);
+        assert_eq!(config.max_voice_note_bytes(), 20 * 10 * 1024);
+        assert_eq!(config.label_voice_note, "Voice note (optional):");
     }
 
     #[test]
