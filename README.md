@@ -175,7 +175,7 @@ Running `guestbook` with no env vars will give you a working guestbook on `local
 # Message textarea height in pixels.
 # BOOK_TEXTAREA_HEIGHT=150
 
-# Custom HTML template file with {{title}}, {{form}}, {{entries}}, and {{style}} placeholders.
+# Custom HTML template file with {{title}}, {{prompt}}, {{form}}, {{entries}}, and {{style}} placeholders.
 # Uses built-in default if unset.
 # BOOK_TEMPLATE=./templates/default.html
 
@@ -344,10 +344,13 @@ The `status` field can be `pending`, `approved`, or `denied`. Only approved entr
   Available placeholders:
 
     title   - Site title (BOOK_SITE_TITLE). Useful in <title> and headings.
+    prompt  - The form prompt text (BOOK_FORM_PROMPT), wrapped in a
+              <span class="guestbook-prompt">. Empty when submissions
+              are disabled. Place anywhere relative to the form.
     form    - The submission form (labels, inputs, button). Controlled by
-              BOOK_FORM_PROMPT, BOOK_LABEL_NAME, BOOK_LABEL_WEBSITE,
-              BOOK_LABEL_MESSAGE, BOOK_BUTTON_TEXT, BOOK_TEXTAREA_WIDTH,
-              BOOK_TEXTAREA_HEIGHT. Empty when BOOK_ENABLE_SUBMISSIONS=false.
+              BOOK_LABEL_NAME, BOOK_LABEL_WEBSITE, BOOK_LABEL_MESSAGE,
+              BOOK_BUTTON_TEXT, BOOK_TEXTAREA_WIDTH, BOOK_TEXTAREA_HEIGHT.
+              Empty when BOOK_ENABLE_SUBMISSIONS=false.
     entries - Approved guestbook entries, newest first. Entry separator
               controlled by BOOK_SEPARATOR.
     style   - Custom CSS from BOOK_STYLE or BOOK_STYLE_FILE, wrapped in
@@ -370,6 +373,7 @@ The `status` field can be `pending`, `approved`, or `denied`. Only approved entr
 guestbook
 =========
 
+{{prompt}}
 {{form}}
 
 entries

@@ -13,8 +13,17 @@ pub fn render_page(template: &str, config: &Config, entries: &[Entry], form_html
         &config.style
     };
     let style = format!("<style>\n{css}\n  </style>");
+    let prompt = if config.enable_submissions {
+        format!(
+            "<span class=\"guestbook-prompt\">{}</span>",
+            config.form_prompt
+        )
+    } else {
+        String::new()
+    };
     template
         .replace("{{title}}", &config.site_title)
+        .replace("{{prompt}}", &prompt)
         .replace("{{form}}", form_html)
         .replace("{{entries}}", &entries_html)
         .replace("{{style}}", &style)
@@ -174,8 +183,7 @@ pub fn render_form(config: &Config) -> String {
     };
 
     format!(
-        r#"<span class="guestbook-prompt">{prompt}</span>
-<form class="guestbook-form" method="post" action="/submit" accept-charset="UTF-8">
+        r#"<form class="guestbook-form" method="post" action="/submit" accept-charset="UTF-8">
 <label class="guestbook-label" for="name">{label_name}</label>
 <input class="guestbook-input" id="name" name="name" required>
 {website_section}
@@ -184,7 +192,6 @@ pub fn render_form(config: &Config) -> String {
 {captcha_section}
 {drawing_section}{voice_note_section}<input name="url" aria-hidden="true" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0)" tabindex="-1" autocomplete="off"><button class="guestbook-button" type="submit">{button}</button>
 </form>"#,
-        prompt = config.form_prompt,
         label_name = config.label_name,
         website_section = website_section,
         label_message = config.label_message,
@@ -437,7 +444,8 @@ mod tests {
         config.button_text = "submit".into();
         config.label_name = "Name:".into();
         let form = render_form(&config);
-        assert!(form.contains("Leave a note!"));
+        let html = render_page(DEFAULT_TEMPLATE, &config, &[], &form);
+        assert!(html.contains("Leave a note!"));
         assert!(form.contains("submit"));
         assert!(form.contains("Name:"));
     }
