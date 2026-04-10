@@ -322,7 +322,9 @@ mod tests {
             data_dir: PathBuf::from("./data"),
             site_title: "test".into(),
 
+            #[cfg(feature = "telegram")]
             telegram_bot_token: None,
+            #[cfg(feature = "telegram")]
             telegram_chat_id: None,
             enable_honeypot: true,
             max_name_length: 0,

@@ -7,7 +7,9 @@ pub struct Config {
     pub data_dir: PathBuf,
     pub site_title: String,
 
+    #[cfg(feature = "telegram")]
     pub telegram_bot_token: Option<String>,
+    #[cfg(feature = "telegram")]
     pub telegram_chat_id: Option<i64>,
     pub enable_honeypot: bool,
     pub max_name_length: usize,
@@ -67,7 +69,9 @@ impl Config {
                 .unwrap_or_else(|_| PathBuf::from("./data")),
             site_title: env::var("BOOK_SITE_TITLE").unwrap_or_else(|_| "guestbook".into()),
 
+            #[cfg(feature = "telegram")]
             telegram_bot_token: env::var("BOOK_TELEGRAM_BOT_TOKEN").ok(),
+            #[cfg(feature = "telegram")]
             telegram_chat_id: env::var("BOOK_TELEGRAM_CHAT_ID")
                 .ok()
                 .map(|v| v.parse().map_err(|_| "BOOK_TELEGRAM_CHAT_ID must be an integer"))
@@ -188,7 +192,9 @@ mod tests {
         assert_eq!(config.listen_addr(), "127.0.0.1:9999");
         assert_eq!(config.data_dir, PathBuf::from("/tmp/gb"));
         assert_eq!(config.site_title, "test.rs");
+        #[cfg(feature = "telegram")]
         assert_eq!(config.telegram_bot_token.as_deref(), Some("123:ABC"));
+        #[cfg(feature = "telegram")]
         assert_eq!(config.telegram_chat_id, Some(12345));
 
         // Clean up
@@ -221,7 +227,9 @@ mod tests {
         env::remove_var("BOOK_TELEGRAM_CHAT_ID");
 
         let config = Config::from_env().unwrap();
+        #[cfg(feature = "telegram")]
         assert!(config.telegram_bot_token.is_none());
+        #[cfg(feature = "telegram")]
         assert!(config.telegram_chat_id.is_none());
     }
 

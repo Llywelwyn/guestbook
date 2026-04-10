@@ -1,11 +1,11 @@
 mod config;
 mod entries;
 mod render;
+#[cfg(feature = "telegram")]
 mod telegram;
 mod web;
 
 use std::sync::Arc;
-use teloxide::prelude::*;
 
 #[tokio::main]
 async fn main() {
@@ -18,24 +18,30 @@ async fn main() {
 
     std::fs::create_dir_all(&entries_dir).expect("failed to create entries directory");
 
-    let (tx, rx) = tokio::sync::mpsc::channel::<(entries::Entry, Option<Vec<u8>>, Option<Vec<u8>>)>(32);
+    let (tx, _rx) = tokio::sync::mpsc::channel::<(entries::Entry, Option<Vec<u8>>, Option<Vec<u8>>)>(32);
 
-    // Spawn telegram tasks if configured
-    match (&config.telegram_bot_token, config.telegram_chat_id) {
-        (Some(token), Some(chat_id)) => {
-            let chat_id = ChatId(chat_id);
-            let bot = Bot::new(token);
+    #[cfg(feature = "telegram")]
+    {
+        use teloxide::prelude::*;
+        match (&config.telegram_bot_token, config.telegram_chat_id) {
+            (Some(token), Some(chat_id)) => {
+                let chat_id = ChatId(chat_id);
+                let bot = Bot::new(token);
 
-            let notify_bot = bot.clone();
-            tokio::spawn(telegram::notification_task(notify_bot, chat_id, rx));
+                let notify_bot = bot.clone();
+                tokio::spawn(telegram::notification_task(notify_bot, chat_id, _rx));
 
-            let cmd_data_dir = config.data_dir.clone();
-            tokio::spawn(telegram::bot_task(bot, chat_id, cmd_data_dir));
-        }
-        _ => {
-            tracing::info!("telegram not configured, moderation notifications disabled");
+                let cmd_data_dir = config.data_dir.clone();
+                tokio::spawn(telegram::bot_task(bot, chat_id, cmd_data_dir));
+            }
+            _ => {
+                tracing::info!("telegram not configured, moderation notifications disabled");
+            }
         }
     }
+
+    #[cfg(not(feature = "telegram"))]
+    tracing::info!("compiled without telegram support");
 
     let state = Arc::new(web::AppState { config, tx });
     let app = web::router(state);

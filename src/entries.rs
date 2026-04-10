@@ -24,6 +24,7 @@ pub struct EntryMeta {
 
 #[derive(Debug, Clone)]
 pub struct Entry {
+    #[cfg_attr(not(feature = "telegram"), allow(dead_code))]
     pub id: String,
     pub meta: EntryMeta,
     pub body: String,
@@ -49,6 +50,7 @@ impl Entry {
         })
     }
 
+    #[cfg(any(feature = "telegram", test))]
     /// Return the short ID (UUID portion after the underscore).
     pub fn short_id(&self) -> &str {
         self.id.split('_').last().unwrap_or(&self.id)
@@ -103,6 +105,7 @@ pub fn read_approved(dir: &Path) -> Vec<Entry> {
     read_by_status(dir, Status::Approved)
 }
 
+#[cfg(any(feature = "telegram", test))]
 /// Find a single entry by short ID (the UUID portion after the underscore).
 pub fn find_entry(dir: &Path, short_id: &str) -> Result<Entry, String> {
     let read_dir = std::fs::read_dir(dir).map_err(|e| e.to_string())?;
@@ -119,6 +122,7 @@ pub fn find_entry(dir: &Path, short_id: &str) -> Result<Entry, String> {
     Err("Not found.".into())
 }
 
+#[cfg(any(feature = "telegram", test))]
 /// Delete an entry and its associated media files.
 /// `data_dir` is the parent directory containing entries/, drawings/, and voice_notes/.
 pub fn delete_entry(data_dir: &Path, short_id: &str) -> Result<String, String> {
@@ -148,6 +152,7 @@ pub fn delete_entry(data_dir: &Path, short_id: &str) -> Result<String, String> {
     Ok(entry.meta.name.clone())
 }
 
+#[cfg(any(feature = "telegram", test))]
 /// Find an entry file by short ID prefix and update its status.
 pub fn set_status(dir: &Path, short_id: &str, status: Status) -> Result<String, String> {
     let mut entry = find_entry(dir, short_id)?;
