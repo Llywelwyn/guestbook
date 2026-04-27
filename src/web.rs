@@ -49,13 +49,20 @@ pub fn router(state: Arc<AppState>) -> Router {
         .with_state(state)
 }
 
-fn generate_id(entries_dir: &std::path::Path) -> String {
+fn generate_id(entries_dir: &std::path::Path) -> std::io::Result<String> {
     const CHARS: &[u8] = b"0123456789abcdefghijklmnopqrstuvwxyz";
     let mut rng = rand::rng();
     loop {
         let id: String = (0..4).map(|_| CHARS[rng.random_range(0..36)] as char).collect();
-        if !entries_dir.join(format!("{id}.txt")).exists() {
-            return id;
+        let path = entries_dir.join(format!("{id}.txt"));
+        match std::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&path)
+        {
+            Ok(_) => return Ok(id),
+            Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => continue,
+            Err(e) => return Err(e),
         }
     }
 }
@@ -272,19 +279,33 @@ async fn submit(
 
     let now = chrono::Utc::now();
     let date = now.format("%Y-%m-%dT%H:%M:%S").to_string();
-    let id = generate_id(&state.config.data_dir.join("entries"));
-    let filename = format!("{id}.txt");
 
-    // Save drawing with the same ID as the entry
+    let entries_dir = state.config.data_dir.join("entries");
+    if let Err(e) = std::fs::create_dir_all(&entries_dir) {
+        tracing::error!("failed to create entries directory: {e}");
+        return Html(render_error_page(&state.config, "Something went wrong. Please try again."));
+    }
+    let id = match generate_id(&entries_dir) {
+        Ok(id) => id,
+        Err(e) => {
+            tracing::error!("failed to reserve entry id: {e}");
+            return Html(render_error_page(&state.config, "Something went wrong. Please try again."));
+        }
+    };
+    let filename = format!("{id}.txt");
+    let path = entries_dir.join(&filename);
+
     let drawing_filename = if let Some(ref bytes) = drawing_bytes {
         let drawing_name = format!("{id}.png");
         let drawings_dir = state.config.data_dir.join("drawings");
         if let Err(e) = std::fs::create_dir_all(&drawings_dir) {
             tracing::error!("failed to create drawings directory: {e}");
+            let _ = std::fs::remove_file(&path);
             return Html(render_error_page(&state.config, "Something went wrong. Please try again."));
         }
-        if let Err(e) = std::fs::write(drawings_dir.join(&drawing_name), bytes) {
+        if let Err(e) = entries::write_atomic(&drawings_dir.join(&drawing_name), bytes) {
             tracing::error!("failed to write drawing: {e}");
+            let _ = std::fs::remove_file(&path);
             return Html(render_error_page(&state.config, "Something went wrong. Please try again."));
         }
         drawing_name
@@ -297,10 +318,18 @@ async fn submit(
         let vn_dir = state.config.data_dir.join("voice_notes");
         if let Err(e) = std::fs::create_dir_all(&vn_dir) {
             tracing::error!("failed to create voice notes directory: {e}");
+            let _ = std::fs::remove_file(&path);
+            if !drawing_filename.is_empty() {
+                let _ = std::fs::remove_file(state.config.data_dir.join("drawings").join(&drawing_filename));
+            }
             return Html(render_error_page(&state.config, "Something went wrong. Please try again."));
         }
-        if let Err(e) = std::fs::write(vn_dir.join(&vn_name), bytes) {
+        if let Err(e) = entries::write_atomic(&vn_dir.join(&vn_name), bytes) {
             tracing::error!("failed to write voice note: {e}");
+            let _ = std::fs::remove_file(&path);
+            if !drawing_filename.is_empty() {
+                let _ = std::fs::remove_file(state.config.data_dir.join("drawings").join(&drawing_filename));
+            }
             return Html(render_error_page(&state.config, "Something went wrong. Please try again."));
         }
         vn_name
@@ -314,22 +343,22 @@ async fn submit(
             name,
             date,
             website,
-            drawing: drawing_filename,
-            voice_note: voice_note_filename,
+            drawing: drawing_filename.clone(),
+            voice_note: voice_note_filename.clone(),
             status: Status::Pending,
         },
         body: message,
     };
 
-    // Write to disk
-    let entries_dir = state.config.data_dir.join("entries");
-    if let Err(e) = std::fs::create_dir_all(&entries_dir) {
-        tracing::error!("failed to create entries directory: {e}");
-        return Html(render_error_page(&state.config, "Something went wrong. Please try again."));
-    }
-    let path = entries_dir.join(&filename);
-    if let Err(e) = std::fs::write(&path, entry.to_file_contents()) {
+    if let Err(e) = entries::write_atomic(&path, entry.to_file_contents().as_bytes()) {
         tracing::error!("failed to write entry: {e}");
+        let _ = std::fs::remove_file(&path);
+        if !drawing_filename.is_empty() {
+            let _ = std::fs::remove_file(state.config.data_dir.join("drawings").join(&drawing_filename));
+        }
+        if !voice_note_filename.is_empty() {
+            let _ = std::fs::remove_file(state.config.data_dir.join("voice_notes").join(&voice_note_filename));
+        }
         return Html(render_error_page(&state.config, "Something went wrong. Please try again."));
     }
 

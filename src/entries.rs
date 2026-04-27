@@ -1,5 +1,31 @@
+use rand::Rng;
 use serde::{Deserialize, Serialize};
+use std::io::Write;
 use std::path::Path;
+
+pub fn write_atomic(path: &Path, contents: &[u8]) -> std::io::Result<()> {
+    let parent = path.parent().ok_or_else(|| {
+        std::io::Error::new(std::io::ErrorKind::InvalidInput, "path has no parent")
+    })?;
+    let filename = path
+        .file_name()
+        .and_then(|n| n.to_str())
+        .ok_or_else(|| std::io::Error::new(std::io::ErrorKind::InvalidInput, "bad filename"))?;
+    let suffix: u32 = rand::rng().random();
+    let tmp = parent.join(format!(".{filename}.{suffix:08x}.tmp"));
+    let mut f = std::fs::File::create(&tmp)?;
+    f.write_all(contents)?;
+    f.sync_all()?;
+    drop(f);
+    if let Err(e) = std::fs::rename(&tmp, path) {
+        let _ = std::fs::remove_file(&tmp);
+        return Err(e);
+    }
+    if let Ok(dir) = std::fs::File::open(parent) {
+        let _ = dir.sync_all();
+    }
+    Ok(())
+}
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -149,17 +175,16 @@ pub fn append_reply(dir: &Path, id: &str, reply: &str) -> Result<String, String>
     entry.body.push_str("\n\n");
     entry.body.push_str(&quoted);
     let path = dir.join(format!("{}.txt", entry.id));
-    std::fs::write(&path, entry.to_file_contents()).map_err(|e| e.to_string())?;
+    write_atomic(&path, entry.to_file_contents().as_bytes()).map_err(|e| e.to_string())?;
     Ok(entry.meta.name.clone())
 }
 
 #[cfg(any(feature = "telegram", test))]
-/// Find an entry file by ID and update its status.
 pub fn set_status(dir: &Path, short_id: &str, status: Status) -> Result<String, String> {
     let mut entry = find_entry(dir, short_id)?;
     entry.meta.status = status;
     let path = dir.join(format!("{}.txt", entry.id));
-    std::fs::write(&path, entry.to_file_contents()).map_err(|e| e.to_string())?;
+    write_atomic(&path, entry.to_file_contents().as_bytes()).map_err(|e| e.to_string())?;
     Ok(entry.meta.name.clone())
 }
 
