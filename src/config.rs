@@ -137,7 +137,7 @@ impl Config {
                 .map(|v| v != "false")
                 .unwrap_or(false),
             canvas_width: env::var("BOOK_CANVAS_WIDTH")
-                .unwrap_or_else(|_| "400".into())
+                .unwrap_or_else(|_| "320".into())
                 .parse()
                 .map_err(|_| "BOOK_CANVAS_WIDTH must be a number")?,
             canvas_height: env::var("BOOK_CANVAS_HEIGHT")
@@ -167,18 +167,16 @@ impl Config {
                 })
                 .or_else(|| env::var("BOOK_STYLE").ok())
                 .unwrap_or_default(),
-            form_prompt: env::var("BOOK_FORM_PROMPT")
-                .unwrap_or_else(|_| "Thanks for visiting. Sign the guestbook!".into()),
+            form_prompt: env::var("BOOK_FORM_PROMPT").unwrap_or_default(),
             button_text: env::var("BOOK_BUTTON_TEXT")
                 .unwrap_or_else(|_| "sign".into()),
-            label_name: env::var("BOOK_LABEL_NAME")
-                .unwrap_or_else(|_| "Your name:".into()),
+            label_name: env::var("BOOK_LABEL_NAME").unwrap_or_else(|_| "name".into()),
             label_website: env::var("BOOK_LABEL_WEBSITE")
-                .unwrap_or_else(|_| "Your website (optional):".into()),
+                .unwrap_or_else(|_| "website (optional)".into()),
             label_message: env::var("BOOK_LABEL_MESSAGE")
-                .unwrap_or_else(|_| "Your message:".into()),
+                .unwrap_or_else(|_| "message".into()),
             textarea_width: env::var("BOOK_TEXTAREA_WIDTH")
-                .unwrap_or_else(|_| "400".into())
+                .unwrap_or_else(|_| "320".into())
                 .parse()
                 .map_err(|_| "BOOK_TEXTAREA_WIDTH must be a number")?,
             textarea_height: env::var("BOOK_TEXTAREA_HEIGHT")
@@ -318,9 +316,9 @@ mod tests {
 
         let config = Config::from_env().unwrap();
         assert!(!config.enable_drawings);
-        assert_eq!(config.canvas_width, 400);
+        assert_eq!(config.canvas_width, 320);
         assert_eq!(config.canvas_height, 200);
-        assert_eq!(config.max_drawing_bytes(), 400 * 200 * 4);
+        assert_eq!(config.max_drawing_bytes(), 320 * 200 * 4);
     }
 
     #[test]

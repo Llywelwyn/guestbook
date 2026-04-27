@@ -156,27 +156,28 @@ Running `guestbook` with no env vars will give you a working guestbook on `local
 
 # Custom CSS injected into a style tag.
 # Classes: .guestbook-form, .guestbook-prompt, .guestbook-label, .guestbook-input,
-#          .guestbook-textarea, .guestbook-button, .entry, .entry-header, .entry-date,
-#          .entry-name, .entry-website, .entry-body
+#          .guestbook-textarea, .guestbook-button, .entries, .entry-header, .entry-date,
+#          .entry-name, .entry-website, .entry-body, .entry-drawing-wrap, .entry-drawing,
+#          .entry-voice-note-wrap
 # BOOK_STYLE=
 
-# Text shown above the form.
+# Text shown above the form. Empty by default.
 # BOOK_FORM_PROMPT=Thanks for visiting. Sign the guestbook!
 
 # Submit button text.
 # BOOK_BUTTON_TEXT=sign
 
 # Label for the name field.
-# BOOK_LABEL_NAME=Your name:
+# BOOK_LABEL_NAME=name
 
 # Label for the website field.
-# BOOK_LABEL_WEBSITE=Your website (optional):
+# BOOK_LABEL_WEBSITE=website (optional)
 
 # Label for the message field.
-# BOOK_LABEL_MESSAGE=Your message:
+# BOOK_LABEL_MESSAGE=message
 
 # Message textarea width in pixels.
-# BOOK_TEXTAREA_WIDTH=400
+# BOOK_TEXTAREA_WIDTH=320
 
 # Message textarea height in pixels.
 # BOOK_TEXTAREA_HEIGHT=150
@@ -194,7 +195,7 @@ Running `guestbook` with no env vars will give you a working guestbook on `local
 # BOOK_ENABLE_DRAWINGS=false
 
 # Drawing canvas width in pixels.
-# BOOK_CANVAS_WIDTH=400
+# BOOK_CANVAS_WIDTH=320
 
 # Drawing canvas height in pixels.
 # BOOK_CANVAS_HEIGHT=200
@@ -234,7 +235,7 @@ services.guestbook = {
     websites.enable = true;
     drawing = {
       enable = false;
-      canvasWidth = 400;
+      canvasWidth = 320;
       canvasHeight = 200;
     };
     voiceNote = {
@@ -275,15 +276,15 @@ services.guestbook = {
     cssFile = null;
     templateFile = null;
     successTemplateFile = null;
-    greeting = "Thanks for visiting. Sign the guestbook!";
+    greeting = "";
     labels = {
       submit = "sign";
-      name = "Your name:";
-      website = "Your website (optional):";
-      message = "Your message:";
+      name = "name";
+      website = "website (optional)";
+      message = "message";
     };
     message = {
-      width = 400;
+      width = 320;
       height = 150;
     };
   };
@@ -412,14 +413,12 @@ entered into the 'message' field.
 </head>
 <body>
 <div class="page-container">
-{{title}}
-=========
+<h1>{{title}}</h1>
 
 {{prompt}}
 {{form}}
 
-entries
-=======
+<h1>entries</h1>
 {{entries}}
 </div>
 </body>
@@ -462,9 +461,12 @@ entries
 
 ```css
 /* Page container */
+body {
+  margin: 0;
+  line-height: 1.5;
+}
 .page-container {
   max-width: 70ch;
-  margin: 0 auto;
   padding: 1rem;
   word-wrap: break-word;
 }
@@ -472,37 +474,37 @@ entries
 /* Form */
 .guestbook-prompt { display: block; margin-bottom: 1em; }
 .guestbook-form {}
-.guestbook-label { display: block; }
-.guestbook-input { display: block; margin-bottom: 0.5em; }
-.guestbook-textarea { display: block; box-sizing: border-box; max-width: 100%; margin-bottom: 0.5em; }
-.guestbook-button { display: block; margin-top: 1em; margin-bottom: 1.5em; }
+.guestbook-label { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+.guestbook-input { display: block; margin-bottom: 0.2em; }
+.guestbook-textarea { display: block; box-sizing: border-box; max-width: 100%; margin-bottom: 0.2em; }
+.guestbook-button { display: block; }
 
 /* Drawings */
 .guestbook-canvas { border: 1px solid #000; cursor: crosshair; display: block; max-width: 100%; height: auto; }
 .guestbook-canvas-tools { display: block; }
 .guestbook-canvas-tools a { cursor: pointer; }
-.guestbook-drawing-wrap { display: block; margin-bottom: 0.5em; }
+.guestbook-drawing-wrap { display: block; }
 .guestbook-drawing-inline a { cursor: pointer; }
 .guestbook-drawing-content:empty { display: none; }
-.guestbook-drawing-content { display: block; margin-bottom: 0.5em; }
+.guestbook-drawing-content { display: block; }
 .guestbook-swatch { display: inline-block; width: 0.85em; height: 0.85em; border: 1px solid #000; cursor: pointer; vertical-align: middle; box-sizing: border-box; margin: 0 1px; }
 .guestbook-swatch.active { border: 1px solid #000; outline: 1px solid #000; }
 .guestbook-size-slider { width: 4em; vertical-align: middle; }
 .entry-drawing { max-width: 100%; }
 
 /* Voice notes */
-.guestbook-voice-wrap { display: block; margin-bottom: 0.5em; }
+.guestbook-voice-wrap { display: block; }
 .guestbook-voice-record.recording { color: red; }
 .guestbook-voice-timer { font-variant-numeric: tabular-nums; }
 .guestbook-voice-playback:empty { display: none; }
 .guestbook-voice-playback { display: block; white-space: normal; }
-audio { display: block; margin-bottom: 0.3em; height: 2em; }
+audio { display: block; height: 2em; }
 
 /* Entries */
-.entry { margin: 0.5em 0; }
-.entry-header { margin-bottom: 0.2em; }
+.entries { margin: 0; line-height: 1; }
+.entries dt:not(:first-child) { margin-top: 0.5rem; }
 .entry-date {}
-.entry-name {}
+.entry-name { font-weight: bold; }
 .entry-website {}
 .entry-body { white-space: pre-wrap; }
 ```

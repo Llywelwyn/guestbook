@@ -32,8 +32,8 @@ pub fn render_page(template: &str, config: &Config, entries: &[Entry], form_html
 pub fn render_form(config: &Config) -> String {
     let website_section = if config.enable_website_links {
         format!(
-            "\n<label class=\"guestbook-label\" for=\"website\">{}</label>\n<input class=\"guestbook-input\" id=\"website\" name=\"website\">\n",
-            config.label_website
+            "\n<label class=\"guestbook-label\" for=\"website\">{label}</label>\n<input class=\"guestbook-input\" id=\"website\" name=\"website\" placeholder=\"{label}\">\n",
+            label = config.label_website
         )
     } else {
         String::new()
@@ -41,8 +41,8 @@ pub fn render_form(config: &Config) -> String {
 
     let captcha_section = if config.enable_captcha {
         format!(
-            "\n<label class=\"guestbook-label\" for=\"captcha\">{}</label>\n<input class=\"guestbook-input\" id=\"captcha\" name=\"captcha\" required>\n",
-            config.captcha_question
+            "\n<label class=\"guestbook-label\" for=\"captcha\">{label}</label>\n<input class=\"guestbook-input\" id=\"captcha\" name=\"captcha\" placeholder=\"{label}\" required>\n",
+            label = config.captcha_question
         )
     } else {
         String::new()
@@ -186,10 +186,10 @@ pub fn render_form(config: &Config) -> String {
     format!(
         r#"<form class="guestbook-form" method="post" action="/submit" accept-charset="UTF-8">
 <label class="guestbook-label" for="name">{label_name}</label>
-<input class="guestbook-input" id="name" name="name" required>
+<input class="guestbook-input" id="name" name="name" placeholder="{label_name}" required>
 {website_section}
 <label class="guestbook-label" for="message">{label_message}</label>
-<textarea class="guestbook-textarea" id="message" name="message" style="width:{tw}px;height:{th}px" required></textarea>
+<textarea class="guestbook-textarea" id="message" name="message" placeholder="{label_message}" style="width:{tw}px;height:{th}px" required></textarea>
 {captcha_section}
 {drawing_section}{voice_note_section}<input name="url" aria-hidden="true" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0)" tabindex="-1" autocomplete="off"><button class="guestbook-button" type="submit">{button}</button>
 </form>"#,
@@ -256,13 +256,14 @@ fn escape_html(s: &str) -> String {
 }
 
 fn render_entries(entries: &[Entry], config: &Config) -> String {
-    let mut html = String::new();
-    for (i, entry) in entries.iter().enumerate() {
-        if i > 0 {
-            html.push_str("<hr class=\"entry-separator\">");
-        }
+    if entries.is_empty() {
+        return String::new();
+    }
+    let mut html = String::from("<dl class=\"entries\">");
+    for entry in entries {
         html.push_str(&render_entry(entry, config));
     }
+    html.push_str("</dl>");
     html
 }
 
@@ -272,18 +273,15 @@ fn render_entry(entry: &Entry, config: &Config) -> String {
     } else {
         escape_html(&entry.meta.name)
     };
-    let mut header = format!(
-        "<header class=\"entry-header\"><span class=\"entry-date\">{}</span> - <span class=\"entry-name\">{}</span>",
-        &entry.meta.date[..10], name
-    );
-    if config.enable_website_links && !entry.meta.website.is_empty() {
-        let website = escape_html(&entry.meta.website);
-        header.push_str(&format!(
-            " (<a class=\"entry-website\" href=\"{}\">{}</a>)",
-            website, website
-        ));
-    }
-    header.push_str("</header>");
+    let name_html = if config.enable_website_links && !entry.meta.website.is_empty() {
+        format!(
+            "<a class=\"entry-website\" href=\"{}\">{}</a>",
+            escape_html(&entry.meta.website),
+            name
+        )
+    } else {
+        name
+    };
     let body = if config.enable_html_injection {
         entry.body.clone()
     } else {
@@ -291,7 +289,7 @@ fn render_entry(entry: &Entry, config: &Config) -> String {
     };
     let drawing_html = if !entry.meta.drawing.is_empty() {
         format!(
-            "<img class=\"entry-drawing\" src=\"/drawings/{}\" alt=\"Drawing by {}\">",
+            "<dd class=\"entry-drawing-wrap\"><img class=\"entry-drawing\" src=\"/drawings/{}\" alt=\"Drawing by {}\"></dd>",
             escape_html(&entry.meta.drawing),
             escape_html(&entry.meta.name)
         )
@@ -300,15 +298,21 @@ fn render_entry(entry: &Entry, config: &Config) -> String {
     };
     let voice_note_html = if !entry.meta.voice_note.is_empty() {
         format!(
-            "<span class=\"entry-voice-note\"><audio controls preload=\"metadata\" src=\"/voice_notes/{}\"></audio></span>",
+            "<dd class=\"entry-voice-note-wrap\"><audio controls preload=\"metadata\" src=\"/voice_notes/{}\"></audio></dd>",
             escape_html(&entry.meta.voice_note)
         )
     } else {
         String::new()
     };
+    let body_html = if body.is_empty() {
+        String::new()
+    } else {
+        format!("<dd class=\"entry-body\">{body}</dd>")
+    };
+    let date = &entry.meta.date[..10];
     format!(
-        "<article class=\"entry\" id=\"{id}\">{header}{drawing_html}{voice_note_html}<div class=\"entry-body\">{body}</div></article>",
-        id = escape_html(&entry.id)
+        "<dt class=\"entry-header\" id=\"{id}\" title=\"{date}\"><span class=\"entry-date\">{date}&emsp;</span><span class=\"entry-name\">{name_html}</span></dt>{body_html}{drawing_html}{voice_note_html}",
+        id = escape_html(&entry.id),
     )
 }
 
@@ -404,7 +408,8 @@ mod tests {
         assert!(html.contains("entry-header"));
         assert!(html.contains("entry-name"));
         assert!(html.contains("entry-body"));
-        assert!(html.contains("<article class=\"entry\" id=\"test\">"));
+        assert!(html.contains("id=\"test\""));
+        assert!(html.contains("<dl class=\"entries\">"));
     }
 
     #[test]

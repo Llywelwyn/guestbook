@@ -98,7 +98,7 @@ in
 
         canvasWidth = mkOption {
           type = types.int;
-          default = 400;
+          default = 320;
           description = "Drawing canvas width in pixels.";
         };
 
@@ -251,7 +251,7 @@ in
 
       greeting = mkOption {
         type = types.str;
-        default = "Thanks for visiting. Sign the guestbook!";
+        default = "";
         description = "Text shown above the form.";
       };
 
@@ -264,27 +264,27 @@ in
 
         name = mkOption {
           type = types.str;
-          default = "Your name:";
-          description = "Label for the name field.";
+          default = "name";
+          description = "Label for the name field (used as both screen-reader label and placeholder).";
         };
 
         website = mkOption {
           type = types.str;
-          default = "Your website (optional):";
-          description = "Label for the website field.";
+          default = "website (optional)";
+          description = "Label for the website field (used as both screen-reader label and placeholder).";
         };
 
         message = mkOption {
           type = types.str;
-          default = "Your message:";
-          description = "Label for the message field.";
+          default = "message";
+          description = "Label for the message field (used as both screen-reader label and placeholder).";
         };
       };
 
       message = {
         width = mkOption {
           type = types.int;
-          default = 400;
+          default = 320;
           description = "Message textarea width in pixels.";
         };
 
