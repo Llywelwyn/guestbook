@@ -277,7 +277,20 @@ async fn submit(
         None
     };
 
-    if message.is_empty() && drawing_bytes.is_none() && voice_note_bytes.is_none() {
+    if state.config.message_required && message.is_empty() {
+        return Html(render_error_page(&state.config, "Message is required."));
+    }
+    if state.config.drawing_required && state.config.enable_drawings && drawing_bytes.is_none() {
+        return Html(render_error_page(&state.config, "Drawing is required."));
+    }
+    if state.config.voice_note_required && state.config.enable_voice_notes && voice_note_bytes.is_none() {
+        return Html(render_error_page(&state.config, "Voice note is required."));
+    }
+    if state.config.content_required
+        && message.is_empty()
+        && drawing_bytes.is_none()
+        && voice_note_bytes.is_none()
+    {
         return Html(render_error_page(&state.config, "Please leave a message, drawing, or voice note."));
     }
 
@@ -411,6 +424,10 @@ mod tests {
             canvas_height: 200,
             enable_voice_notes: false,
             voice_note_max_duration: 20,
+            message_required: false,
+            drawing_required: false,
+            voice_note_required: false,
+            content_required: true,
             template: None,
             success_template: None,
             style: String::new(),
@@ -1162,6 +1179,98 @@ mod tests {
 
         let (status, _) = get_path(&app, "/voice_notes/../entries/secret.txt").await;
         assert_eq!(status, StatusCode::NOT_FOUND);
+    }
+
+    #[tokio::test]
+    async fn test_content_required_false_allows_name_only() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut config = test_config(dir.path());
+        config.content_required = false;
+        let (app, _rx) = test_app(config);
+        let (_, body) = post_form(&app, "name=alice&message=").await;
+        assert!(body.contains("pending approval"));
+        let count = std::fs::read_dir(dir.path().join("entries")).unwrap().count();
+        assert_eq!(count, 1);
+    }
+
+    #[tokio::test]
+    async fn test_message_required_rejects_empty_message() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut config = test_config(dir.path());
+        config.message_required = true;
+        config.content_required = false;
+        let (app, _rx) = test_app(config);
+        let (_, body) = post_form(&app, "name=alice&message=").await;
+        assert!(body.contains("Message is required"));
+    }
+
+    #[tokio::test]
+    async fn test_drawing_required_rejects_missing_drawing() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut config = test_config(dir.path());
+        config.enable_drawings = true;
+        config.drawing_required = true;
+        config.content_required = false;
+        let (app, _rx) = test_app(config);
+        let (_, body) = post_form(&app, "name=alice&message=hi").await;
+        assert!(body.contains("Drawing is required"));
+    }
+
+    #[tokio::test]
+    async fn test_drawing_required_noop_when_drawings_disabled() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut config = test_config(dir.path());
+        config.enable_drawings = false;
+        config.drawing_required = true;
+        let (app, _rx) = test_app(config);
+        let (_, body) = post_form(&app, "name=alice&message=hi").await;
+        assert!(body.contains("pending approval"));
+    }
+
+    #[tokio::test]
+    async fn test_voice_note_required_rejects_missing() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut config = test_config(dir.path());
+        config.enable_voice_notes = true;
+        config.voice_note_required = true;
+        config.content_required = false;
+        let (app, _rx) = test_app(config);
+        let (_, body) = post_form(&app, "name=alice&message=hi").await;
+        assert!(body.contains("Voice note is required"));
+    }
+
+    #[tokio::test]
+    async fn test_voice_note_required_noop_when_disabled() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut config = test_config(dir.path());
+        config.enable_voice_notes = false;
+        config.voice_note_required = true;
+        let (app, _rx) = test_app(config);
+        let (_, body) = post_form(&app, "name=alice&message=hi").await;
+        assert!(body.contains("pending approval"));
+    }
+
+    #[tokio::test]
+    async fn test_individual_required_takes_priority_over_content() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut config = test_config(dir.path());
+        config.enable_drawings = true;
+        config.canvas_width = 400;
+        config.canvas_height = 200;
+        config.message_required = true;
+        // content_required is true by default, but the individual check should fire first
+        let (app, _rx) = test_app(config);
+
+        // Submit with a drawing but no message — content would be satisfied, but message_required fires
+        let png = fake_png(400, 200);
+        let drawing_data = base64::engine::general_purpose::STANDARD.encode(&png);
+        let data_url = format!("data:image/png;base64,{drawing_data}");
+        let body = format!(
+            "name=alice&message=&drawing={}",
+            urlencoding::encode(&data_url)
+        );
+        let (_, resp) = post_form(&app, &body).await;
+        assert!(resp.contains("Message is required"));
     }
 
     #[tokio::test]

@@ -34,6 +34,10 @@ pub struct Config {
     pub canvas_height: u32,
     pub enable_voice_notes: bool,
     pub voice_note_max_duration: u32,
+    pub message_required: bool,
+    pub drawing_required: bool,
+    pub voice_note_required: bool,
+    pub content_required: bool,
     pub template: Option<String>,
     pub success_template: Option<String>,
     pub style: String,
@@ -153,6 +157,18 @@ impl Config {
                 .unwrap_or_else(|_| "20".into())
                 .parse()
                 .map_err(|_| "BOOK_VOICE_NOTE_MAX_DURATION must be a number")?,
+            message_required: env::var("BOOK_MESSAGE_REQUIRED")
+                .map(|v| v != "false")
+                .unwrap_or(false),
+            drawing_required: env::var("BOOK_DRAWING_REQUIRED")
+                .map(|v| v != "false")
+                .unwrap_or(false),
+            voice_note_required: env::var("BOOK_VOICE_NOTE_REQUIRED")
+                .map(|v| v != "false")
+                .unwrap_or(false),
+            content_required: env::var("BOOK_CONTENT_REQUIRED")
+                .map(|v| v != "false")
+                .unwrap_or(true),
             template: env::var("BOOK_TEMPLATE").ok().map(|path| {
                 std::fs::read_to_string(&path)
                     .unwrap_or_else(|e| panic!("failed to read template {path}: {e}"))

@@ -336,6 +336,10 @@ mod tests {
             canvas_height: 200,
             enable_voice_notes: false,
             voice_note_max_duration: 20,
+            message_required: false,
+            drawing_required: false,
+            voice_note_required: false,
+            content_required: true,
             template: None,
             success_template: None,
             style: String::new(),
@@ -438,12 +442,9 @@ mod tests {
     #[test]
     fn test_render_form_custom_labels() {
         let mut config = test_config();
-        config.form_prompt = "Leave a note!".into();
         config.button_text = "submit".into();
         config.label_name = "Name:".into();
         let form = render_form(&config);
-        let html = render_page(DEFAULT_TEMPLATE, &config, &[], &form);
-        assert!(html.contains("Leave a note!"));
         assert!(form.contains("submit"));
         assert!(form.contains("Name:"));
     }

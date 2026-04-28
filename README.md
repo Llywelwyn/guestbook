@@ -11,7 +11,7 @@
 
 and more, written in Rust, and inspired by [t0.vc/g](https://t0.vc/g).
 
-`guestbook` is a single binary that serves a single-page guestbook aimed at personal sites. There's a form for visitors to submit a name, message, and optionally a link to their own site. Visitors can also draw a picture or leave a voice note if those features are enabled. Entries are written to plain text files with TOML frontmatter, and are initially marked as pending. The frontmatter can be manually edited to mark entries as approved or denied, or a Telegram bot can be hooked up for notifications and moderation (drawings are sent as photos and voice notes as voice messages so you can review them before approving). Running the Telegram bot just requires handing over a bot token, and it'll run off the same binary.
+`guestbook` is a single-page guestbook designed for personal sites. There's a form for visitors to submit a name, and optionally a message, a link to their own site, a drawing, or a voice note. Entries are written to plain text files with TOML frontmatter, and are initially marked as pending. The frontmatter can be manually edited to mark entries as approved or denied, or a Telegram bot can be hooked up for notifications and moderation (drawings and voice notes are fetched on demand via `/drawing_<id>` and `/voice_note_<id>` so the chat doesn't fill up with attachments). Running the Telegram bot just requires handing over a bot token.
 
 Everything is configured through environment variables (see [`.env.example`](#default-config) for the defaults). If you're hosting with Nix, there's a flake that can set up the `guestbook` service end-to-end, running on a systemd service with a Caddy reverse proxy. Optionally, just ignore the flake and set up all the extra stuff yourself.
 
@@ -61,7 +61,7 @@ This will run the site on localhost on the port you've configured, or `8123` by 
             enable = true;
             package = guestbook.packages.x86_64-linux.default;
             siteTitle = "my guestbook";
-            features.telegram = {
+            telegram = {
               enable = true;
               botTokenFile = "/run/secrets/guestbook-bot-token";
               chatId = 12345;
@@ -155,26 +155,35 @@ Running `guestbook` with no env vars will give you a working guestbook on `local
 # BOOK_STYLE_FILE=./templates/default.css
 
 # Custom CSS injected into a style tag.
-# Classes: .guestbook-form, .guestbook-prompt, .guestbook-label, .guestbook-input,
-#          .guestbook-textarea, .guestbook-button, .entries, .entry-header, .entry-date,
-#          .entry-name, .entry-website, .entry-body, .entry-drawing-wrap, .entry-drawing,
-#          .entry-voice-note-wrap
+# Classes: .guestbook-form, .guestbook-label, .guestbook-input, .guestbook-textarea,
+#          .guestbook-button, .guestbook-canvas, .guestbook-drawing-wrap,
+#          .guestbook-drawing-tools, .guestbook-drawing-content, .guestbook-swatch,
+#          .guestbook-size-slider, .guestbook-voice-wrap, .guestbook-voice-controls,
+#          .guestbook-voice-record, .guestbook-voice-timer, .guestbook-voice-playback,
+#          .entries, .entry-header, .entry-date, .entry-name, .entry-website,
+#          .entry-body, .entry-drawing-wrap, .entry-drawing, .entry-voice-note-wrap
 # BOOK_STYLE=
 
-# Text shown above the form. Empty by default.
-# BOOK_FORM_PROMPT=Thanks for visiting. Sign the guestbook!
-
 # Submit button text.
-# BOOK_BUTTON_TEXT=sign
+# BOOK_BUTTON_TEXT=Submit Entry
 
 # Label for the name field.
-# BOOK_LABEL_NAME=name
+# BOOK_LABEL_NAME=Your name
 
 # Label for the website field.
-# BOOK_LABEL_WEBSITE=website (optional)
+# BOOK_LABEL_WEBSITE=Link a website (optional)
 
 # Label for the message field.
-# BOOK_LABEL_MESSAGE=message
+# BOOK_LABEL_MESSAGE=Leave a message (optional)
+
+# Label for the drawing field (when BOOK_ENABLE_DRAWINGS=true).
+# BOOK_LABEL_DRAWING=Leave a drawing (optional)
+
+# Label for the voice note field (when BOOK_ENABLE_VOICE_NOTES=true).
+# BOOK_LABEL_VOICE_NOTE=Leave a voice note (optional)
+
+# Initial text on the voice note record button.
+# BOOK_VOICE_NOTE_RECORD_TEXT=Start recording
 
 # Message textarea width in pixels.
 # BOOK_TEXTAREA_WIDTH=320
@@ -182,7 +191,7 @@ Running `guestbook` with no env vars will give you a working guestbook on `local
 # Message textarea height in pixels.
 # BOOK_TEXTAREA_HEIGHT=150
 
-# Custom HTML template file with {{title}}, {{prompt}}, {{form}}, {{entries}}, and {{style}} placeholders.
+# Custom HTML template file with {{title}}, {{form}}, {{entries}}, and {{style}} placeholders.
 # Uses built-in default if unset.
 # BOOK_TEMPLATE=./templates/default.html
 
@@ -205,6 +214,18 @@ Running `guestbook` with no env vars will give you a working guestbook on `local
 
 # Maximum voice note duration in seconds. Max file size is derived as duration * 10KB.
 # BOOK_VOICE_NOTE_MAX_DURATION=20
+
+# Require a non-empty message field. Individual checks take priority over BOOK_CONTENT_REQUIRED.
+# BOOK_MESSAGE_REQUIRED=false
+
+# Require a drawing. No-op when BOOK_ENABLE_DRAWINGS=false.
+# BOOK_DRAWING_REQUIRED=false
+
+# Require a voice note. No-op when BOOK_ENABLE_VOICE_NOTES=false.
+# BOOK_VOICE_NOTE_REQUIRED=false
+
+# Require at least one of message, drawing, or voice note. Set to false to allow name-only submissions.
+# BOOK_CONTENT_REQUIRED=true
 ```
 
 #### NixOS Module
@@ -230,45 +251,54 @@ services.guestbook = {
     };
   };
 
-  features = {
-    submissions.enable = true;
-    websites.enable = true;
-    drawing = {
-      enable = false;
-      canvasWidth = 320;
-      canvasHeight = 200;
+  submissions.enable = true;
+  websites.enable = true;
+
+  drawing = {
+    enable = false;
+    required = false;
+  };
+
+  voice = {
+    enable = false;
+    required = false;
+  };
+
+  message.required = false;
+  content.required = true;
+
+  telegram = {
+    enable = false;
+    # botTokenFile = <path>;  -- required when enabled
+    # chatId = <int>;         -- required when enabled
+    retry = {
+      interval = 20;
+      limit = 3;
     };
-    voiceNote = {
+    reminderInterval = 86400;
+  };
+
+  security = {
+    htmlInjection.enable = false;
+    honeypot.enable = true;
+    captcha = {
       enable = false;
-      maxDuration = 20;
-    };
-    telegram = {
-      enable = false;
-      # botTokenFile = <path>;  -- required when enabled
-      # chatId = <int>;         -- required when enabled
-      retry = {
-        interval = 20;
-        limit = 3;
-      };
-      reminderInterval = 86400;
-    };
-    security = {
-      htmlInjection.enable = false;
-      honeypot.enable = true;
-      captcha = {
-        enable = false;
-        question = "";
-        answer = "";
-        exact = false;
-        caseSensitive = false;
-      };
+      question = "";
+      answer = "";
+      exact = false;
+      caseSensitive = false;
     };
   };
 
   limits = {
-    name = 0;
-    message = 0;
-    website = 0;
+    name.length = 0;
+    message.length = 0;
+    website.length = 0;
+    drawing = {
+      width = 320;
+      height = 200;
+    };
+    voice.duration = 20;
   };
 
   styles = {
@@ -276,12 +306,14 @@ services.guestbook = {
     cssFile = null;
     templateFile = null;
     successTemplateFile = null;
-    greeting = "";
     labels = {
-      submit = "sign";
-      name = "name";
-      website = "website (optional)";
-      message = "message";
+      submit = "Submit Entry";
+      name = "Your name";
+      website = "Link a website (optional)";
+      message = "Leave a message (optional)";
+      drawing = "Leave a drawing (optional)";
+      voice = "Leave a voice note (optional)";
+      voiceRecord = "Start recording";
     };
     message = {
       width = 320;
@@ -390,13 +422,11 @@ entered into the 'message' field.
   Available placeholders:
 
     title   - Site title (BOOK_SITE_TITLE). Useful in <title> and headings.
-    prompt  - The form prompt text (BOOK_FORM_PROMPT), wrapped in a
-              <span class="guestbook-prompt">. Empty when submissions
-              are disabled. Place anywhere relative to the form.
     form    - The submission form (labels, inputs, button). Controlled by
               BOOK_LABEL_NAME, BOOK_LABEL_WEBSITE, BOOK_LABEL_MESSAGE,
-              BOOK_BUTTON_TEXT, BOOK_TEXTAREA_WIDTH, BOOK_TEXTAREA_HEIGHT.
-              Empty when BOOK_ENABLE_SUBMISSIONS=false.
+              BOOK_LABEL_DRAWING, BOOK_LABEL_VOICE_NOTE, BOOK_BUTTON_TEXT,
+              BOOK_TEXTAREA_WIDTH, BOOK_TEXTAREA_HEIGHT. Empty when
+              BOOK_ENABLE_SUBMISSIONS=false.
     entries - Approved guestbook entries, newest first.
     style   - Custom CSS from BOOK_STYLE or BOOK_STYLE_FILE, wrapped in
               a <style> tag. Uses built-in default.css when neither is set.
@@ -415,8 +445,10 @@ entered into the 'message' field.
 <div class="page-container">
 <h1>{{title}}</h1>
 
-{{prompt}}
+<details class="guestbook-details">
+<summary class="guestbook-summary">Click me to leave an entry</summary>
 {{form}}
+</details>
 
 <h1>entries</h1>
 {{entries}}
@@ -472,41 +504,117 @@ body {
 }
 
 /* Form */
-.guestbook-prompt { display: block; margin-bottom: 1em; }
+.guestbook-prompt {
+  display: block;
+  margin-bottom: 1em;
+}
 .guestbook-form {}
-.guestbook-label { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
-.guestbook-input { display: block; margin-bottom: 0.2em; }
-.guestbook-textarea { display: block; box-sizing: border-box; max-width: 100%; margin-bottom: 0.2em; }
-.guestbook-button { display: block; }
+.guestbook-label {
+  display: block;
+  font-style: oblique;
+}
+.guestbook-label::after {
+  content: ":";
+}
+.guestbook-input {
+  display: block;
+  margin-bottom: 0.4em;
+}
+.guestbook-textarea {
+  display: block;
+  box-sizing: border-box;
+  max-width: 100%;
+  margin-bottom: 0.4em;
+}
+.guestbook-button {
+  display: block;
+}
 
 /* Drawings */
-.guestbook-canvas { border: 1px solid #000; cursor: crosshair; display: block; max-width: 100%; height: auto; }
-.guestbook-canvas-tools { display: block; }
-.guestbook-canvas-tools a { cursor: pointer; }
-.guestbook-drawing-wrap { display: block; }
-.guestbook-drawing-inline a { cursor: pointer; }
-.guestbook-drawing-content:empty { display: none; }
-.guestbook-drawing-content { display: block; }
-.guestbook-swatch { display: inline-block; width: 0.85em; height: 0.85em; border: 1px solid #000; cursor: pointer; vertical-align: middle; box-sizing: border-box; margin: 0 1px; }
-.guestbook-swatch.active { border: 1px solid #000; outline: 1px solid #000; }
-.guestbook-size-slider { width: 4em; vertical-align: middle; }
-.entry-drawing { max-width: 100%; }
+.guestbook-canvas {
+  border: 1px solid #000;
+  cursor: crosshair;
+  display: block;
+  max-width: 100%;
+  height: auto;
+}
+.guestbook-drawing-wrap {
+  display: block;
+  margin-bottom: 0.4em;
+}
+.guestbook-drawing-tools {
+  display: block;
+}
+.guestbook-drawing-tools a {
+  cursor: pointer;
+}
+.guestbook-drawing-content {
+  display: block;
+}
+.guestbook-swatch {
+  display: inline-block;
+  width: 0.85em;
+  height: 0.85em;
+  border: 1px solid #000;
+  cursor: pointer;
+  vertical-align: middle;
+  box-sizing: border-box;
+  margin: 0 1px;
+}
+.guestbook-swatch.active {
+  border: 1px solid #000;
+  outline: 1px solid #000;
+}
+.guestbook-size-slider {
+  width: 4em;
+  vertical-align: middle;
+}
+.entry-drawing {
+  max-width: 100%;
+}
 
 /* Voice notes */
-.guestbook-voice-wrap { display: block; }
-.guestbook-voice-record.recording { color: red; }
-.guestbook-voice-timer { font-variant-numeric: tabular-nums; }
-.guestbook-voice-playback:empty { display: none; }
-.guestbook-voice-playback { display: block; white-space: normal; }
-audio { display: block; height: 2em; }
+.guestbook-voice-wrap {
+  display: block;
+  margin-bottom: 0.4em;
+}
+.guestbook-voice-controls a {
+  cursor: pointer;
+}
+.guestbook-voice-record.recording {
+  color: red;
+}
+.guestbook-voice-timer {
+  font-variant-numeric: tabular-nums;
+}
+.guestbook-voice-playback:empty {
+  display: none;
+}
+.guestbook-voice-playback {
+  display: block;
+  white-space: normal;
+}
+audio {
+  display: block;
+  height: 2em;
+}
 
 /* Entries */
-.entries { margin: 0; line-height: 1; }
-.entries dt:not(:first-child) { margin-top: 0.5rem; }
+.entries {
+  margin: 0;
+  line-height: 1;
+}
+.entries dt:not(:first-child) {
+  margin-top: 0.5rem;
+}
 .entry-date {}
-.entry-name { font-weight: bold; }
+.entry-name {
+  font-weight: bold;
+}
 .entry-website {}
-.entry-body { white-space: pre-wrap; }
+.entry-body {
+  white-space: pre-wrap;
+}
 ```
 
 ---

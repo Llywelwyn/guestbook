@@ -17,6 +17,10 @@ body {
 .guestbook-form {}
 .guestbook-label {
   display: block;
+  font-style: oblique;
+}
+.guestbook-label::after {
+  content: ":";
 }
 .guestbook-input {
   display: block;
