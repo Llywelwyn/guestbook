@@ -13,17 +13,8 @@ pub fn render_page(template: &str, config: &Config, entries: &[Entry], form_html
         &config.style
     };
     let style = format!("<style>\n{css}\n  </style>");
-    let prompt = if config.enable_submissions {
-        format!(
-            "<span class=\"guestbook-prompt\">{}</span>",
-            config.form_prompt
-        )
-    } else {
-        String::new()
-    };
     template
         .replace("{{title}}", &config.site_title)
-        .replace("{{prompt}}", &prompt)
         .replace("{{form}}", form_html)
         .replace("{{entries}}", &entries_html)
         .replace("{{style}}", &style)
@@ -50,7 +41,7 @@ pub fn render_form(config: &Config) -> String {
 
     let drawing_section = if config.enable_drawings {
         format!(
-            r##"<span class="guestbook-label">drawing (optional)</span>
+            r##"<span class="guestbook-label">{label}</span>
 <span class="guestbook-drawing-wrap"><span class="guestbook-drawing-tools"></span><span class="guestbook-drawing-content"></span></span><input type="hidden" name="drawing"><script>(function(){{
   var inl=document.querySelector('.guestbook-drawing-tools'),
       cnt=document.querySelector('.guestbook-drawing-content'),
@@ -102,6 +93,7 @@ pub fn render_form(config: &Config) -> String {
     if(px.some(function(v){{return v!==0}})){{hid.value=c.toDataURL('image/png')}}
   }});
 }})();</script>"##,
+            label = config.label_drawing,
             w = config.canvas_width,
             h = config.canvas_height,
         )
@@ -111,7 +103,7 @@ pub fn render_form(config: &Config) -> String {
 
     let voice_note_section = if config.enable_voice_notes {
         format!(
-            r##"<span class="guestbook-label">voice note (optional)</span>
+            r##"<span class="guestbook-label">{label}</span>
 <span class="guestbook-voice-wrap"><span class="guestbook-voice-controls"></span><span class="guestbook-voice-playback"></span></span><input type="hidden" name="voice_note"><script>(function(){{
   var maxDur={max_dur};
   var inl=document.querySelector('.guestbook-voice-controls'),
@@ -124,7 +116,7 @@ pub fn render_form(config: &Config) -> String {
     rec=null;chunks=[];clearInterval(iv);iv=null;pb.innerHTML='';hid.value='';
     inl.innerHTML='';
     var a=document.createElement('a');a.href='#';a.className='guestbook-voice-record';
-    a.textContent='record';
+    a.textContent='{record}';
     a.addEventListener('click',function(e){{e.preventDefault();startRec()}});
     inl.appendChild(a);
   }}
@@ -169,6 +161,8 @@ pub fn render_form(config: &Config) -> String {
   }}
   setInit();
 }})();</script>"##,
+            label = config.label_voice_note,
+            record = config.voice_note_record_text,
             max_dur = config.voice_note_max_duration,
         )
     } else {
@@ -176,16 +170,13 @@ pub fn render_form(config: &Config) -> String {
     };
 
     format!(
-        r#"<details class="guestbook-details">
-<summary class="guestbook-summary">Leave your own message.</summary>
-<form class="guestbook-form" method="post" action="/submit" accept-charset="UTF-8">
+        r#"<form class="guestbook-form" method="post" action="/submit" accept-charset="UTF-8">
 <label class="guestbook-label" for="name">{label_name}</label>
 <input class="guestbook-input" id="name" name="name" required>
 {website_section}<label class="guestbook-label" for="message">{label_message}</label>
 <textarea class="guestbook-textarea" id="message" name="message" style="width:{tw}px;height:{th}px"></textarea>
 {drawing_section}{voice_note_section}{captcha_section}<input name="url" aria-hidden="true" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0)" tabindex="-1" autocomplete="off"><button class="guestbook-button" type="submit">{button}</button>
-</form>
-</details>"#,
+</form>"#,
         label_name = config.label_name,
         website_section = website_section,
         label_message = config.label_message,
@@ -348,11 +339,13 @@ mod tests {
             template: None,
             success_template: None,
             style: String::new(),
-            form_prompt: "Thanks for visiting. Sign the guestbook!".into(),
             button_text: "sign".into(),
             label_name: "name".into(),
             label_website: "website (optional)".into(),
             label_message: "message (optional)".into(),
+            label_drawing: "drawing (optional)".into(),
+            label_voice_note: "voice note (optional)".into(),
+            voice_note_record_text: "record".into(),
             textarea_width: 400,
             textarea_height: 150,
         }

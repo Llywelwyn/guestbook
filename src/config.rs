@@ -37,11 +37,13 @@ pub struct Config {
     pub template: Option<String>,
     pub success_template: Option<String>,
     pub style: String,
-    pub form_prompt: String,
     pub button_text: String,
     pub label_name: String,
     pub label_website: String,
     pub label_message: String,
+    pub label_drawing: String,
+    pub label_voice_note: String,
+    pub voice_note_record_text: String,
     pub textarea_width: u32,
     pub textarea_height: u32,
 }
@@ -167,14 +169,19 @@ impl Config {
                 })
                 .or_else(|| env::var("BOOK_STYLE").ok())
                 .unwrap_or_default(),
-            form_prompt: env::var("BOOK_FORM_PROMPT").unwrap_or_default(),
             button_text: env::var("BOOK_BUTTON_TEXT")
-                .unwrap_or_else(|_| "Submit".into()),
-            label_name: env::var("BOOK_LABEL_NAME").unwrap_or_else(|_| "name".into()),
+                .unwrap_or_else(|_| "Submit Entry".into()),
+            label_name: env::var("BOOK_LABEL_NAME").unwrap_or_else(|_| "Your name".into()),
             label_website: env::var("BOOK_LABEL_WEBSITE")
-                .unwrap_or_else(|_| "website (optional)".into()),
+                .unwrap_or_else(|_| "Link a website (optional)".into()),
             label_message: env::var("BOOK_LABEL_MESSAGE")
-                .unwrap_or_else(|_| "message (optional)".into()),
+                .unwrap_or_else(|_| "Leave a message (optional)".into()),
+            label_drawing: env::var("BOOK_LABEL_DRAWING")
+                .unwrap_or_else(|_| "Leave a drawing (optional)".into()),
+            label_voice_note: env::var("BOOK_LABEL_VOICE_NOTE")
+                .unwrap_or_else(|_| "Leave a voice note (optional)".into()),
+            voice_note_record_text: env::var("BOOK_VOICE_NOTE_RECORD_TEXT")
+                .unwrap_or_else(|_| "Start recording".into()),
             textarea_width: env::var("BOOK_TEXTAREA_WIDTH")
                 .unwrap_or_else(|_| "320".into())
                 .parse()

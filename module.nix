@@ -249,35 +249,47 @@ in
         description = "Custom success page template with {{title}} and {{style}} placeholders. Uses built-in default if null.";
       };
 
-      greeting = mkOption {
-        type = types.str;
-        default = "";
-        description = "Text shown above the form.";
-      };
-
       labels = {
         submit = mkOption {
           type = types.str;
-          default = "sign";
+          default = "Submit Entry";
           description = "Submit button text.";
         };
 
         name = mkOption {
           type = types.str;
-          default = "name";
-          description = "Label for the name field (used as both screen-reader label and placeholder).";
+          default = "Your name";
+          description = "Label for the name field.";
         };
 
         website = mkOption {
           type = types.str;
-          default = "website (optional)";
-          description = "Label for the website field (used as both screen-reader label and placeholder).";
+          default = "Link a website (optional)";
+          description = "Label for the website field.";
         };
 
         message = mkOption {
           type = types.str;
-          default = "message";
-          description = "Label for the message field (used as both screen-reader label and placeholder).";
+          default = "Leave a message (optional)";
+          description = "Label for the message field.";
+        };
+
+        drawing = mkOption {
+          type = types.str;
+          default = "Leave a drawing (optional)";
+          description = "Label for the drawing field (when drawing.enable=true).";
+        };
+
+        voiceNote = mkOption {
+          type = types.str;
+          default = "Leave a voice note (optional)";
+          description = "Label for the voice note field (when voiceNote.enable=true).";
+        };
+
+        voiceNoteRecord = mkOption {
+          type = types.str;
+          default = "Start recording";
+          description = "Initial text on the voice note record button.";
         };
       };
 
@@ -323,11 +335,13 @@ in
           BOOK_MAX_MESSAGE_LENGTH = toString cfg.limits.message;
           BOOK_MAX_WEBSITE_LENGTH = toString cfg.limits.website;
           BOOK_STYLE = cfg.styles.css;
-          BOOK_FORM_PROMPT = cfg.styles.greeting;
           BOOK_BUTTON_TEXT = cfg.styles.labels.submit;
           BOOK_LABEL_NAME = cfg.styles.labels.name;
           BOOK_LABEL_WEBSITE = cfg.styles.labels.website;
           BOOK_LABEL_MESSAGE = cfg.styles.labels.message;
+          BOOK_LABEL_DRAWING = cfg.styles.labels.drawing;
+          BOOK_LABEL_VOICE_NOTE = cfg.styles.labels.voiceNote;
+          BOOK_VOICE_NOTE_RECORD_TEXT = cfg.styles.labels.voiceNoteRecord;
           BOOK_CANVAS_WIDTH = toString cfg.features.drawing.canvasWidth;
           BOOK_CANVAS_HEIGHT = toString cfg.features.drawing.canvasHeight;
           BOOK_ENABLE_VOICE_NOTES = if cfg.features.voiceNote.enable then "true" else "false";
