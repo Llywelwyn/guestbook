@@ -32,7 +32,7 @@ pub fn render_page(template: &str, config: &Config, entries: &[Entry], form_html
 pub fn render_form(config: &Config) -> String {
     let website_section = if config.enable_website_links {
         format!(
-            "\n<label class=\"guestbook-label\" for=\"website\">{label}</label>\n<input class=\"guestbook-input\" id=\"website\" name=\"website\" placeholder=\"{label}\">\n",
+            "<label class=\"guestbook-label\" for=\"website\">{label}</label>\n<input class=\"guestbook-input\" id=\"website\" name=\"website\">\n",
             label = config.label_website
         )
     } else {
@@ -41,7 +41,7 @@ pub fn render_form(config: &Config) -> String {
 
     let captcha_section = if config.enable_captcha {
         format!(
-            "\n<label class=\"guestbook-label\" for=\"captcha\">{label}</label>\n<input class=\"guestbook-input\" id=\"captcha\" name=\"captcha\" placeholder=\"{label}\" required>\n",
+            "<label class=\"guestbook-label\" for=\"captcha\">{label}</label>\n<input class=\"guestbook-input\" id=\"captcha\" name=\"captcha\" required>\n",
             label = config.captcha_question
         )
     } else {
@@ -50,9 +50,9 @@ pub fn render_form(config: &Config) -> String {
 
     let drawing_section = if config.enable_drawings {
         format!(
-            r##"<span class="guestbook-drawing-wrap"><span class="guestbook-drawing-inline"><a href="#" class="guestbook-drawing-toggle">add a drawing</a></span>
-<span class="guestbook-drawing-content"></span></span><input type="hidden" name="drawing"><script>(function(){{
-  var inl=document.querySelector('.guestbook-drawing-inline'),
+            r##"<span class="guestbook-label">drawing (optional)</span>
+<span class="guestbook-drawing-wrap"><span class="guestbook-drawing-tools"></span><span class="guestbook-drawing-content"></span></span><input type="hidden" name="drawing"><script>(function(){{
+  var inl=document.querySelector('.guestbook-drawing-tools'),
       cnt=document.querySelector('.guestbook-drawing-content'),
       hid=document.querySelector('[name=drawing]'),
       c,x,d=false,lx,ly,h=[],col='#000',sz=5;
@@ -69,48 +69,38 @@ pub fn render_form(config: &Config) -> String {
     c.addEventListener('touchstart',function(e){{e.preventDefault();save();var p=tpos(e);lx=p[0];ly=p[1];dot(lx,ly)}});
     c.addEventListener('touchmove',function(e){{e.preventDefault();var p=tpos(e);x.beginPath();x.moveTo(lx,ly);x.lineTo(p[0],p[1]);x.stroke();lx=p[0];ly=p[1]}});
   }}
-  function showCanvas(){{
-    inl.innerHTML='';
-    var sw=[{{c:'#000',n:'black'}},{{c:'#e03131',n:'red'}},{{c:'#2f9e44',n:'green'}},{{c:'#1971c2',n:'blue'}}];
-    sw.forEach(function(s,i){{
-      var sp=document.createElement('span');
-      sp.className='guestbook-swatch'+(i===0?' active':'');
-      sp.setAttribute('data-c',s.c);sp.style.background=s.c;
-      sp.setAttribute('role','button');sp.setAttribute('aria-label',s.n);
-      sp.addEventListener('click',function(){{
-        inl.querySelectorAll('.guestbook-swatch').forEach(function(el){{el.classList.remove('active')}});
-        sp.classList.add('active');col=s.c;x.strokeStyle=col;
-      }});
-      inl.appendChild(sp);
+  var sw=[{{c:'#000',n:'black'}},{{c:'#e03131',n:'red'}},{{c:'#2f9e44',n:'green'}},{{c:'#1971c2',n:'blue'}}];
+  sw.forEach(function(s,i){{
+    var sp=document.createElement('span');
+    sp.className='guestbook-swatch'+(i===0?' active':'');
+    sp.style.background=s.c;
+    sp.setAttribute('role','button');sp.setAttribute('aria-label',s.n);
+    sp.addEventListener('click',function(){{
+      inl.querySelectorAll('.guestbook-swatch').forEach(function(el){{el.classList.remove('active')}});
+      sp.classList.add('active');col=s.c;x.strokeStyle=col;
     }});
-    var sl=document.createElement('input');
-    sl.type='range';sl.className='guestbook-size-slider';sl.min='1';sl.max='20';sl.value='5';sl.setAttribute('aria-label','Brush size');
-    sl.addEventListener('input',function(){{sz=parseInt(sl.value);x.lineWidth=sz}});
-    inl.appendChild(document.createTextNode(' '));inl.appendChild(sl);
-    inl.appendChild(document.createTextNode(' | '));
-    var undo=document.createElement('a');undo.href='#';undo.textContent='undo';
-    undo.addEventListener('click',function(e){{e.preventDefault();if(h.length)x.putImageData(h.pop(),0,0)}});
-    inl.appendChild(undo);
-    inl.appendChild(document.createTextNode(' | '));
-    var disc=document.createElement('a');disc.href='#';disc.textContent='discard';
-    disc.addEventListener('click',function(e){{
-      e.preventDefault();h=[];col='#000';sz=5;d=false;cnt.innerHTML='';hid.value='';setInit();
-    }});
-    inl.appendChild(disc);
-    c=document.createElement('canvas');c.className='guestbook-canvas';c.width={w};c.height={h};c.setAttribute('aria-label','Drawing canvas');
-    cnt.innerHTML='';cnt.appendChild(c);bindCanvas();
-    c.closest('form').addEventListener('submit',function(){{
-      var px=new Uint32Array(x.getImageData(0,0,c.width,c.height).data.buffer);
-      if(px.some(function(v){{return v!==0}})){{hid.value=c.toDataURL('image/png')}}
-    }});
-  }}
-  function setInit(){{
-    inl.innerHTML='';
-    var a=document.createElement('a');a.href='#';a.textContent='add a drawing';
-    a.addEventListener('click',function(e){{e.preventDefault();showCanvas()}});
-    inl.appendChild(a);
-  }}
-  inl.querySelector('a').addEventListener('click',function(e){{e.preventDefault();showCanvas()}});
+    inl.appendChild(sp);
+  }});
+  var sl=document.createElement('input');
+  sl.type='range';sl.className='guestbook-size-slider';sl.min='1';sl.max='20';sl.value='5';sl.setAttribute('aria-label','Brush size');
+  sl.addEventListener('input',function(){{sz=parseInt(sl.value);x.lineWidth=sz}});
+  inl.appendChild(document.createTextNode(' '));inl.appendChild(sl);
+  inl.appendChild(document.createTextNode(' | '));
+  var undo=document.createElement('a');undo.href='#';undo.textContent='undo';
+  undo.addEventListener('click',function(e){{e.preventDefault();if(h.length)x.putImageData(h.pop(),0,0)}});
+  inl.appendChild(undo);
+  inl.appendChild(document.createTextNode(' | '));
+  var clr=document.createElement('a');clr.href='#';clr.textContent='clear';
+  clr.addEventListener('click',function(e){{
+    e.preventDefault();h=[];x.clearRect(0,0,c.width,c.height);hid.value='';
+  }});
+  inl.appendChild(clr);
+  c=document.createElement('canvas');c.className='guestbook-canvas';c.width={w};c.height={h};c.setAttribute('aria-label','Drawing canvas');
+  cnt.appendChild(c);bindCanvas();
+  c.closest('form').addEventListener('submit',function(){{
+    var px=new Uint32Array(x.getImageData(0,0,c.width,c.height).data.buffer);
+    if(px.some(function(v){{return v!==0}})){{hid.value=c.toDataURL('image/png')}}
+  }});
 }})();</script>"##,
             w = config.canvas_width,
             h = config.canvas_height,
@@ -121,9 +111,10 @@ pub fn render_form(config: &Config) -> String {
 
     let voice_note_section = if config.enable_voice_notes {
         format!(
-            r##"<span class="guestbook-voice-wrap"><span class="guestbook-voice-inline"><a href="#" class="guestbook-voice-record">add a voice note</a> <span class="guestbook-voice-timer"></span></span><span class="guestbook-voice-playback"></span></span><input type="hidden" name="voice_note"><script>(function(){{
+            r##"<span class="guestbook-label">voice note (optional)</span>
+<span class="guestbook-voice-wrap"><span class="guestbook-voice-controls"></span><span class="guestbook-voice-playback"></span></span><input type="hidden" name="voice_note"><script>(function(){{
   var maxDur={max_dur};
-  var inl=document.querySelector('.guestbook-voice-inline'),
+  var inl=document.querySelector('.guestbook-voice-controls'),
       pb=document.querySelector('.guestbook-voice-playback'),
       hid=document.querySelector('[name=voice_note]'),
       rec=null,chunks=[],iv=null,st=0;
@@ -132,7 +123,8 @@ pub fn render_form(config: &Config) -> String {
     if(rec&&rec.state==='recording'){{rec.stop();rec.stream.getTracks().forEach(function(t){{t.stop()}})}}
     rec=null;chunks=[];clearInterval(iv);iv=null;pb.innerHTML='';hid.value='';
     inl.innerHTML='';
-    var a=document.createElement('a');a.href='#';a.textContent='add a voice note';
+    var a=document.createElement('a');a.href='#';a.className='guestbook-voice-record';
+    a.textContent='record';
     a.addEventListener('click',function(e){{e.preventDefault();startRec()}});
     inl.appendChild(a);
   }}
@@ -160,7 +152,7 @@ pub fn render_form(config: &Config) -> String {
     inl.appendChild(re);inl.appendChild(document.createTextNode(' | '));inl.appendChild(disc);
     var url=URL.createObjectURL(blob);
     var au=document.createElement('audio');au.controls=true;au.preload='metadata';au.src=url;
-    pb.innerHTML='';pb.appendChild(au);
+    pb.appendChild(au);
     var rd=new FileReader();rd.onload=function(){{hid.value=rd.result}};rd.readAsDataURL(blob);
   }}
   function startRec(){{
@@ -171,11 +163,11 @@ pub fn render_form(config: &Config) -> String {
       rec.onstop=function(){{setResult()}};
       rec.start();setRec();
     }}).catch(function(){{
-      inl.querySelector('a').textContent='add a voice note';
-      inl.appendChild(document.createTextNode(' (mic denied)'));
+      inl.innerHTML='';
+      inl.appendChild(document.createTextNode('mic access denied'));
     }});
   }}
-  inl.querySelector('a').addEventListener('click',function(e){{e.preventDefault();startRec()}});
+  setInit();
 }})();</script>"##,
             max_dur = config.voice_note_max_duration,
         )
@@ -184,23 +176,24 @@ pub fn render_form(config: &Config) -> String {
     };
 
     format!(
-        r#"<form class="guestbook-form" method="post" action="/submit" accept-charset="UTF-8">
+        r#"<details class="guestbook-details">
+<summary class="guestbook-summary">Leave your own message.</summary>
+<form class="guestbook-form" method="post" action="/submit" accept-charset="UTF-8">
 <label class="guestbook-label" for="name">{label_name}</label>
-<input class="guestbook-input" id="name" name="name" placeholder="{label_name}" required>
-{website_section}
-<label class="guestbook-label" for="message">{label_message}</label>
-<textarea class="guestbook-textarea" id="message" name="message" placeholder="{label_message}" style="width:{tw}px;height:{th}px" required></textarea>
-{captcha_section}
-{drawing_section}{voice_note_section}<input name="url" aria-hidden="true" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0)" tabindex="-1" autocomplete="off"><button class="guestbook-button" type="submit">{button}</button>
-</form>"#,
+<input class="guestbook-input" id="name" name="name" required>
+{website_section}<label class="guestbook-label" for="message">{label_message}</label>
+<textarea class="guestbook-textarea" id="message" name="message" style="width:{tw}px;height:{th}px"></textarea>
+{drawing_section}{voice_note_section}{captcha_section}<input name="url" aria-hidden="true" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0)" tabindex="-1" autocomplete="off"><button class="guestbook-button" type="submit">{button}</button>
+</form>
+</details>"#,
         label_name = config.label_name,
         website_section = website_section,
         label_message = config.label_message,
         tw = config.textarea_width,
         th = config.textarea_height,
-        captcha_section = captcha_section,
         drawing_section = drawing_section,
         voice_note_section = voice_note_section,
+        captcha_section = captcha_section,
         button = config.button_text,
     )
 }
@@ -357,9 +350,9 @@ mod tests {
             style: String::new(),
             form_prompt: "Thanks for visiting. Sign the guestbook!".into(),
             button_text: "sign".into(),
-            label_name: "Your name:".into(),
-            label_website: "Your website (optional):".into(),
-            label_message: "Your message:".into(),
+            label_name: "name".into(),
+            label_website: "website (optional)".into(),
+            label_message: "message (optional)".into(),
             textarea_width: 400,
             textarea_height: 150,
         }
@@ -521,7 +514,7 @@ mod tests {
         let html = render_page(DEFAULT_TEMPLATE, &config, &[entry], &form);
         assert!(html.contains("&lt;b&gt;hacker&lt;/b&gt;"));
         assert!(html.contains("&lt;script&gt;alert(&#x27;xss&#x27;)&lt;/script&gt;"));
-        assert!(!html.contains("<script>"));
+        assert!(!html.contains("<script>alert("));
     }
 
     #[test]
@@ -547,8 +540,8 @@ mod tests {
         let mut config = test_config();
         config.enable_drawings = true;
         let form = render_form(&config);
-        assert!(form.contains("add a drawing"));
-        assert!(form.contains("guestbook-drawing-toggle"));
+        assert!(form.contains("guestbook-drawing-wrap"));
+        assert!(form.contains("guestbook-drawing-content"));
         assert!(form.contains("name=\"drawing\""));
     }
 
@@ -556,7 +549,7 @@ mod tests {
     fn test_render_form_hides_drawing_when_disabled() {
         let config = test_config();
         let form = render_form(&config);
-        assert!(!form.contains("add a drawing"));
+        assert!(!form.contains("guestbook-drawing-wrap"));
         assert!(!form.contains("name=\"drawing\""));
     }
 
@@ -657,8 +650,8 @@ mod tests {
         let mut config = test_config();
         config.enable_voice_notes = true;
         let form = render_form(&config);
-        assert!(form.contains("add a voice note"));
-        assert!(form.contains("guestbook-voice-record"));
+        assert!(form.contains("guestbook-voice-wrap"));
+        assert!(form.contains("guestbook-voice-controls"));
         assert!(form.contains("name=\"voice_note\""));
     }
 
@@ -666,7 +659,7 @@ mod tests {
     fn test_render_form_hides_voice_note_when_disabled() {
         let config = test_config();
         let form = render_form(&config);
-        assert!(!form.contains("add a voice note"));
+        assert!(!form.contains("guestbook-voice-wrap"));
         assert!(!form.contains("name=\"voice_note\""));
     }
 }

@@ -169,12 +169,12 @@ impl Config {
                 .unwrap_or_default(),
             form_prompt: env::var("BOOK_FORM_PROMPT").unwrap_or_default(),
             button_text: env::var("BOOK_BUTTON_TEXT")
-                .unwrap_or_else(|_| "sign".into()),
+                .unwrap_or_else(|_| "Submit".into()),
             label_name: env::var("BOOK_LABEL_NAME").unwrap_or_else(|_| "name".into()),
             label_website: env::var("BOOK_LABEL_WEBSITE")
                 .unwrap_or_else(|_| "website (optional)".into()),
             label_message: env::var("BOOK_LABEL_MESSAGE")
-                .unwrap_or_else(|_| "message".into()),
+                .unwrap_or_else(|_| "message (optional)".into()),
             textarea_width: env::var("BOOK_TEXTAREA_WIDTH")
                 .unwrap_or_else(|_| "320".into())
                 .parse()

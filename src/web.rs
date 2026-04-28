@@ -200,8 +200,8 @@ async fn submit(
         }
     }
 
-    if name.is_empty() || message.is_empty() {
-        return Html(render_error_page(&state.config, "Name and message are required."));
+    if name.is_empty() {
+        return Html(render_error_page(&state.config, "Name is required."));
     }
     let max_name = state.config.max_name_length;
     if max_name > 0 && name.chars().count() > max_name {
@@ -276,6 +276,10 @@ async fn submit(
     } else {
         None
     };
+
+    if message.is_empty() && drawing_bytes.is_none() && voice_note_bytes.is_none() {
+        return Html(render_error_page(&state.config, "Please leave a message, drawing, or voice note."));
+    }
 
     let now = chrono::Utc::now();
     let date = now.format("%Y-%m-%dT%H:%M:%S").to_string();
@@ -412,9 +416,9 @@ mod tests {
             style: String::new(),
             form_prompt: "Thanks for visiting. Sign the guestbook!".into(),
             button_text: "sign".into(),
-            label_name: "Your name:".into(),
-            label_website: "Your website (optional):".into(),
-            label_message: "Your message:".into(),
+            label_name: "name".into(),
+            label_website: "website (optional)".into(),
+            label_message: "message (optional)".into(),
             textarea_width: 400,
             textarea_height: 150,
         }
@@ -962,8 +966,57 @@ mod tests {
         let (app, _rx) = test_app(config);
         let (_, body) = post_form(&app, "name=&message=").await;
         assert!(body.contains("<!DOCTYPE html>"));
-        assert!(body.contains("Name and message are required"));
+        assert!(body.contains("Name is required"));
         assert!(body.contains("back"));
+    }
+
+    #[tokio::test]
+    async fn test_submit_rejects_when_message_drawing_voicenote_all_empty() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut config = test_config(dir.path());
+        config.enable_drawings = true;
+        config.enable_voice_notes = true;
+        let (app, _rx) = test_app(config);
+        let (_, body) = post_form(&app, "name=alice&message=").await;
+        assert!(body.contains("Please leave a message"));
+    }
+
+    #[tokio::test]
+    async fn test_submit_accepts_drawing_only() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut config = test_config(dir.path());
+        config.enable_drawings = true;
+        config.canvas_width = 400;
+        config.canvas_height = 200;
+        let (app, _rx) = test_app(config);
+
+        let png = fake_png(400, 200);
+        let drawing_data = base64::engine::general_purpose::STANDARD.encode(&png);
+        let data_url = format!("data:image/png;base64,{drawing_data}");
+        let body = format!(
+            "name=alice&message=&drawing={}",
+            urlencoding::encode(&data_url)
+        );
+        let (_, resp) = post_form(&app, &body).await;
+        assert!(resp.contains("pending approval"));
+    }
+
+    #[tokio::test]
+    async fn test_submit_accepts_voice_note_only() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut config = test_config(dir.path());
+        config.enable_voice_notes = true;
+        let (app, _rx) = test_app(config);
+
+        let webm = fake_webm();
+        let voice_data = base64::engine::general_purpose::STANDARD.encode(&webm);
+        let data_url = format!("data:audio/webm;codecs=opus;base64,{voice_data}");
+        let body = format!(
+            "name=alice&message=&voice_note={}",
+            urlencoding::encode(&data_url)
+        );
+        let (_, resp) = post_form(&app, &body).await;
+        assert!(resp.contains("pending approval"));
     }
 
     #[tokio::test]
