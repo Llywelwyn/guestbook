@@ -164,15 +164,14 @@ pub fn delete_entry(data_dir: &Path, short_id: &str) -> Result<String, String> {
 }
 
 #[cfg(any(feature = "telegram", test))]
-/// Append a reply to an entry's body, prefixed with ">> " on each line.
 pub fn append_reply(dir: &Path, id: &str, reply: &str) -> Result<String, String> {
     let mut entry = find_entry(dir, id)?;
     let quoted: String = reply
         .lines()
-        .map(|line| format!(">>  {line}"))
+        .map(|line| format!(">>  <em>{line}</em>"))
         .collect::<Vec<_>>()
         .join("\n");
-    entry.body.push_str("\n\n");
+    entry.body.push('\n');
     entry.body.push_str(&quoted);
     let path = dir.join(format!("{}.txt", entry.id));
     write_atomic(&path, entry.to_file_contents().as_bytes()).map_err(|e| e.to_string())?;
@@ -408,8 +407,10 @@ Hello!"#;
 
         let entry = find_entry(dir.path(), "ab12").unwrap();
         assert!(entry.body.contains("Did you drink water today?"));
-        assert!(entry.body.contains(">>  Not enough! Thanks for"));
-        assert!(entry.body.contains(">>  the note."));
+        assert!(entry.body.contains(">>  <em>Not enough! Thanks for</em>"));
+        assert!(entry.body.contains(">>  <em>the note.</em>"));
+        assert!(!entry.body.contains("water today?\n\n>>"));
+        assert!(entry.body.contains("water today?\n>>  "));
     }
 
     #[test]
