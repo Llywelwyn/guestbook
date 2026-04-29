@@ -39,11 +39,19 @@ pub struct SubmitForm {
 }
 
 pub fn router(state: Arc<AppState>) -> Router {
-    Router::new()
+    let inner: Router<Arc<AppState>> = Router::new()
         .route("/", get(index))
         .route("/submit", post(submit))
         .route("/drawings/{filename}", get(serve_drawing))
-        .route("/voice_notes/{filename}", get(serve_voice_note))
+        .route("/voice_notes/{filename}", get(serve_voice_note));
+    let routed: Router<Arc<AppState>> = if state.config.base_path.is_empty() {
+        inner
+    } else {
+        Router::new()
+            .route(&format!("{}/", state.config.base_path), get(index))
+            .nest(&state.config.base_path, inner)
+    };
+    routed
         .layer(DefaultBodyLimit::max(2 * 1024 * 1024))
         .layer(middleware::from_fn(security_headers))
         .with_state(state)
@@ -440,6 +448,7 @@ mod tests {
             voice_note_record_text: "record".into(),
             textarea_width: 400,
             textarea_height: 150,
+            base_path: String::new(),
         }
     }
 
@@ -470,6 +479,72 @@ mod tests {
         let resp = app.clone().oneshot(req).await.unwrap();
         let bytes = resp.into_body().collect().await.unwrap().to_bytes();
         String::from_utf8(bytes.to_vec()).unwrap()
+    }
+
+    async fn get_status(app: &Router, uri: &str) -> StatusCode {
+        let req = Request::builder().uri(uri).body(Body::empty()).unwrap();
+        app.clone().oneshot(req).await.unwrap().status()
+    }
+
+    async fn post_form_at(app: &Router, uri: &str, body: &str) -> (StatusCode, String) {
+        let req = Request::builder()
+            .method("POST")
+            .uri(uri)
+            .header("content-type", "application/x-www-form-urlencoded")
+            .body(Body::from(body.to_string()))
+            .unwrap();
+        let resp = app.clone().oneshot(req).await.unwrap();
+        let status = resp.status();
+        let bytes = resp.into_body().collect().await.unwrap().to_bytes();
+        (status, String::from_utf8(bytes.to_vec()).unwrap())
+    }
+
+    #[tokio::test]
+    async fn test_base_path_serves_index_at_prefix_with_slash() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut config = test_config(dir.path());
+        config.base_path = "/guestbook".into();
+        let (app, _rx) = test_app(config);
+        assert_eq!(get_status(&app, "/guestbook/").await, StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn test_base_path_serves_index_at_prefix_no_slash() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut config = test_config(dir.path());
+        config.base_path = "/guestbook".into();
+        let (app, _rx) = test_app(config);
+        assert_eq!(get_status(&app, "/guestbook").await, StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn test_base_path_root_returns_404() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut config = test_config(dir.path());
+        config.base_path = "/guestbook".into();
+        let (app, _rx) = test_app(config);
+        assert_eq!(get_status(&app, "/").await, StatusCode::NOT_FOUND);
+    }
+
+    #[tokio::test]
+    async fn test_base_path_accepts_submit_at_prefix() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut config = test_config(dir.path());
+        config.base_path = "/guestbook".into();
+        let (app, _rx) = test_app(config);
+        let (status, body) = post_form_at(&app, "/guestbook/submit", "name=user&message=hi").await;
+        assert_eq!(status, StatusCode::OK);
+        assert!(body.contains("pending approval"));
+    }
+
+    #[tokio::test]
+    async fn test_base_path_rejects_submit_at_root() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut config = test_config(dir.path());
+        config.base_path = "/guestbook".into();
+        let (app, _rx) = test_app(config);
+        let (status, _) = post_form_at(&app, "/submit", "name=user&message=hi").await;
+        assert_eq!(status, StatusCode::NOT_FOUND);
     }
 
     #[tokio::test]

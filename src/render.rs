@@ -18,6 +18,7 @@ pub fn render_page(template: &str, config: &Config, entries: &[Entry], form_html
         .replace("{{form}}", form_html)
         .replace("{{entries}}", &entries_html)
         .replace("{{style}}", &style)
+        .replace("{{base}}", &config.base_path)
 }
 
 pub fn render_form(config: &Config) -> String {
@@ -170,13 +171,14 @@ pub fn render_form(config: &Config) -> String {
     };
 
     format!(
-        r#"<form class="guestbook-form" method="post" action="/submit" accept-charset="UTF-8">
+        r#"<form class="guestbook-form" method="post" action="{base}/submit" accept-charset="UTF-8">
 <label class="guestbook-label" for="name">{label_name}</label>
 <input class="guestbook-input" id="name" name="name" required>
 {website_section}<label class="guestbook-label" for="message">{label_message}</label>
 <textarea class="guestbook-textarea" id="message" name="message" style="width:{tw}px;height:{th}px"></textarea>
 {drawing_section}{voice_note_section}{captcha_section}<input name="url" aria-hidden="true" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0)" tabindex="-1" autocomplete="off"><button class="guestbook-button" type="submit">{button}</button>
 </form>"#,
+        base = config.base_path,
         label_name = config.label_name,
         website_section = website_section,
         label_message = config.label_message,
@@ -200,6 +202,7 @@ pub fn render_success_page(config: &Config) -> String {
     template
         .replace("{{title}}", &config.site_title)
         .replace("{{style}}", &style)
+        .replace("{{base}}", &config.base_path)
 }
 
 pub fn render_error_page(config: &Config, error: &str) -> String {
@@ -223,11 +226,12 @@ pub fn render_error_page(config: &Config, error: &str) -> String {
 <body>
 <div class="page-container">
 <p>{error}</p>
-<p><a href="/">&#8592; back</a></p>
+<p><a href="{base}/">&#8592; back</a></p>
 </div>
 </body>
 </html>"#,
         title = config.site_title,
+        base = config.base_path,
     )
 }
 
@@ -273,7 +277,8 @@ fn render_entry(entry: &Entry, config: &Config) -> String {
     };
     let drawing_html = if !entry.meta.drawing.is_empty() {
         format!(
-            "<dd class=\"entry-drawing-wrap\"><img class=\"entry-drawing\" src=\"/drawings/{}\" alt=\"Drawing by {}\"></dd>",
+            "<dd class=\"entry-drawing-wrap\"><img class=\"entry-drawing\" src=\"{}/drawings/{}\" alt=\"Drawing by {}\"></dd>",
+            config.base_path,
             escape_html(&entry.meta.drawing),
             escape_html(&entry.meta.name)
         )
@@ -282,7 +287,8 @@ fn render_entry(entry: &Entry, config: &Config) -> String {
     };
     let voice_note_html = if !entry.meta.voice_note.is_empty() {
         format!(
-            "<dd class=\"entry-voice-note-wrap\"><audio controls preload=\"metadata\" src=\"/voice_notes/{}\"></audio></dd>",
+            "<dd class=\"entry-voice-note-wrap\"><audio controls preload=\"metadata\" src=\"{}/voice_notes/{}\"></audio></dd>",
+            config.base_path,
             escape_html(&entry.meta.voice_note)
         )
     } else {
@@ -352,6 +358,7 @@ mod tests {
             voice_note_record_text: "record".into(),
             textarea_width: 400,
             textarea_height: 150,
+            base_path: String::new(),
         }
     }
 
@@ -509,6 +516,73 @@ mod tests {
         assert!(html.contains("&lt;b&gt;hacker&lt;/b&gt;"));
         assert!(html.contains("&lt;script&gt;alert(&#x27;xss&#x27;)&lt;/script&gt;"));
         assert!(!html.contains("<script>alert("));
+    }
+
+    #[test]
+    fn test_render_form_uses_base_path_for_submit() {
+        let mut config = test_config();
+        config.base_path = "/guestbook".into();
+        let form = render_form(&config);
+        assert!(form.contains("action=\"/guestbook/submit\""));
+        assert!(!form.contains("action=\"/submit\""));
+    }
+
+    #[test]
+    fn test_render_form_default_submit_path_unchanged() {
+        let config = test_config();
+        let form = render_form(&config);
+        assert!(form.contains("action=\"/submit\""));
+    }
+
+    #[test]
+    fn test_render_entry_drawing_uses_base_path() {
+        let mut config = test_config();
+        config.base_path = "/guestbook".into();
+        let mut entry = make_entry("alice", "2026-04-09", "");
+        entry.meta.drawing = "abc.png".into();
+        let html = render_page(DEFAULT_TEMPLATE, &config, &[entry], "");
+        assert!(html.contains("src=\"/guestbook/drawings/abc.png\""));
+        assert!(!html.contains("src=\"/drawings/abc.png\""));
+    }
+
+    #[test]
+    fn test_render_entry_voice_note_uses_base_path() {
+        let mut config = test_config();
+        config.base_path = "/guestbook".into();
+        let mut entry = make_entry("bob", "2026-04-09", "");
+        entry.meta.voice_note = "1.webm".into();
+        let html = render_page(DEFAULT_TEMPLATE, &config, &[entry], "");
+        assert!(html.contains("src=\"/guestbook/voice_notes/1.webm\""));
+        assert!(!html.contains("src=\"/voice_notes/1.webm\""));
+    }
+
+    #[test]
+    fn test_render_page_substitutes_base_placeholder() {
+        let mut config = test_config();
+        config.base_path = "/guestbook".into();
+        let custom = "<html><a href=\"{{base}}/\">home</a> {{form}} {{entries}} {{style}} {{title}}</html>";
+        let html = render_page(custom, &config, &[], "");
+        assert!(html.contains("href=\"/guestbook/\""));
+        assert!(!html.contains("{{base}}"));
+    }
+
+    #[test]
+    fn test_render_success_page_substitutes_base_placeholder() {
+        let mut config = test_config();
+        config.base_path = "/guestbook".into();
+        config.success_template = Some("<a href=\"{{base}}/\">back</a> {{title}} {{style}}".into());
+        let html = render_success_page(&config);
+        assert!(html.contains("href=\"/guestbook/\""));
+        assert!(!html.contains("{{base}}"));
+    }
+
+    #[test]
+    fn test_render_error_page_back_link_uses_base_path() {
+        let mut config = test_config();
+        config.base_path = "/guestbook".into();
+        let html = render_error_page(&config, "oops");
+        assert!(html.contains("href=\"/guestbook/\""));
+        assert!(!html.contains("href=\"/\""));
     }
 
     #[test]

@@ -50,6 +50,7 @@ pub struct Config {
     pub voice_note_record_text: String,
     pub textarea_width: u32,
     pub textarea_height: u32,
+    pub base_path: String,
 }
 
 impl Config {
@@ -206,7 +207,19 @@ impl Config {
                 .unwrap_or_else(|_| "150".into())
                 .parse()
                 .map_err(|_| "BOOK_TEXTAREA_HEIGHT must be a number")?,
+            base_path: normalise_base_path(env::var("BOOK_BASE_PATH").unwrap_or_default()),
         })
+    }
+}
+
+fn normalise_base_path(raw: String) -> String {
+    let trimmed = raw.trim().trim_end_matches('/');
+    if trimmed.is_empty() {
+        String::new()
+    } else if trimmed.starts_with('/') {
+        trimmed.to_string()
+    } else {
+        format!("/{trimmed}")
     }
 }
 
@@ -366,5 +379,55 @@ mod tests {
 
         let config = Config::from_env().unwrap();
         assert!(config.success_template.is_none());
+    }
+
+    #[test]
+    fn test_base_path_default_empty() {
+        let _lock = ENV_LOCK.lock().unwrap();
+        env::remove_var("BOOK_BASE_PATH");
+        env::remove_var("BOOK_TELEGRAM_BOT_TOKEN");
+        env::remove_var("BOOK_TELEGRAM_CHAT_ID");
+
+        let config = Config::from_env().unwrap();
+        assert_eq!(config.base_path, "");
+    }
+
+    #[test]
+    fn test_base_path_from_env() {
+        let _lock = ENV_LOCK.lock().unwrap();
+        env::set_var("BOOK_BASE_PATH", "/guestbook");
+        env::remove_var("BOOK_TELEGRAM_BOT_TOKEN");
+        env::remove_var("BOOK_TELEGRAM_CHAT_ID");
+
+        let config = Config::from_env().unwrap();
+        assert_eq!(config.base_path, "/guestbook");
+
+        env::remove_var("BOOK_BASE_PATH");
+    }
+
+    #[test]
+    fn test_base_path_normalises_trailing_slash() {
+        let _lock = ENV_LOCK.lock().unwrap();
+        env::set_var("BOOK_BASE_PATH", "/guestbook/");
+        env::remove_var("BOOK_TELEGRAM_BOT_TOKEN");
+        env::remove_var("BOOK_TELEGRAM_CHAT_ID");
+
+        let config = Config::from_env().unwrap();
+        assert_eq!(config.base_path, "/guestbook");
+
+        env::remove_var("BOOK_BASE_PATH");
+    }
+
+    #[test]
+    fn test_base_path_normalises_missing_leading_slash() {
+        let _lock = ENV_LOCK.lock().unwrap();
+        env::set_var("BOOK_BASE_PATH", "guestbook");
+        env::remove_var("BOOK_TELEGRAM_BOT_TOKEN");
+        env::remove_var("BOOK_TELEGRAM_CHAT_ID");
+
+        let config = Config::from_env().unwrap();
+        assert_eq!(config.base_path, "/guestbook");
+
+        env::remove_var("BOOK_BASE_PATH");
     }
 }

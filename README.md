@@ -191,14 +191,20 @@ Running `guestbook` with no env vars will give you a working guestbook on `local
 # Message textarea height in pixels.
 # BOOK_TEXTAREA_HEIGHT=150
 
-# Custom HTML template file with {{title}}, {{form}}, {{entries}}, and {{style}} placeholders.
+# Custom HTML template file with {{title}}, {{form}}, {{entries}}, {{style}}, and {{base}} placeholders.
 # Uses built-in default if unset.
 # BOOK_TEMPLATE=./templates/default.html
 
 # Custom success page template shown after a successful submission.
-# Supports {{title}} and {{style}} placeholders. Use <script> for dynamic behavior.
+# Supports {{title}}, {{style}}, and {{base}} placeholders. Use <script> for dynamic behavior.
 # Uses built-in templates/success.html if unset.
 # BOOK_SUCCESS_TEMPLATE=./templates/success.html
+
+# URL prefix the guestbook is mounted at. Empty serves at the domain root.
+# When set (e.g. /guestbook), all routes (/, /submit, /drawings/*, /voice_notes/*)
+# are mounted under the prefix, and form actions and asset URLs include it.
+# Templates can interpolate the prefix with the {{base}} placeholder.
+# BOOK_BASE_PATH=
 
 # Enable drawing canvas in submission form. Drawings are stored as PNG files in DATA_DIR/drawings/.
 # BOOK_ENABLE_DRAWINGS=false
@@ -430,6 +436,8 @@ entered into the 'message' field.
     entries - Approved guestbook entries, newest first.
     style   - Custom CSS from BOOK_STYLE or BOOK_STYLE_FILE, wrapped in
               a <style> tag. Uses built-in default.css when neither is set.
+    base    - URL prefix the guestbook is mounted at (BOOK_BASE_PATH).
+              Empty when serving at the domain root.
 
   See default.css for available CSS classes on rendered elements.
 -->
@@ -468,6 +476,7 @@ entered into the 'message' field.
 
     title - Site title (BOOK_SITE_TITLE).
     style - Custom CSS (same as the main template).
+    base  - URL prefix the guestbook is mounted at (BOOK_BASE_PATH).
 
   Everything else is static — write whatever you want. Use <script> for
   dynamic behavior like showing the current time.
@@ -483,7 +492,7 @@ entered into the 'message' field.
 <body>
 <div class="page-container">
 <p>Thanks! Your message is pending approval.</p>
-<p><a href="/">&#8592; back</a></p>
+<p><a href="{{base}}/">&#8592; back</a></p>
 </div>
 </body>
 </html>

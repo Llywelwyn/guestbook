@@ -30,6 +30,18 @@ in
       description = "Site title shown in nav and page title.";
     };
 
+    basePath = mkOption {
+      type = types.str;
+      default = "";
+      example = "/guestbook";
+      description = ''
+        URL prefix the guestbook is mounted at. Empty serves at the domain root.
+        When set, all routes (/, /submit, /drawings/*, /voice_notes/*) are
+        mounted under the prefix, and form actions and asset URLs include it.
+        Templates can interpolate the prefix with the {{base}} placeholder.
+      '';
+    };
+
     user = mkOption {
       type = types.str;
       default = "guestbook";
@@ -268,13 +280,13 @@ in
       templateFile = mkOption {
         type = types.nullOr types.path;
         default = null;
-        description = "Custom HTML template file with {{title}}, {{form}}, {{entries}}, and {{style}} placeholders. Uses built-in default if null.";
+        description = "Custom HTML template file with {{title}}, {{form}}, {{entries}}, {{style}}, and {{base}} placeholders. Uses built-in default if null.";
       };
 
       successTemplateFile = mkOption {
         type = types.nullOr types.path;
         default = null;
-        description = "Custom success page template with {{title}} and {{style}} placeholders. Uses built-in default if null.";
+        description = "Custom success page template with {{title}}, {{style}}, and {{base}} placeholders. Uses built-in default if null.";
       };
 
       labels = {
@@ -380,6 +392,7 @@ in
           BOOK_CONTENT_REQUIRED = if cfg.content.required then "true" else "false";
           BOOK_TEXTAREA_WIDTH = toString cfg.styles.message.width;
           BOOK_TEXTAREA_HEIGHT = toString cfg.styles.message.height;
+          BOOK_BASE_PATH = cfg.basePath;
         } // lib.optionalAttrs (cfg.styles.cssFile != null) {
           BOOK_STYLE_FILE = cfg.styles.cssFile;
         } // lib.optionalAttrs (cfg.styles.templateFile != null) {

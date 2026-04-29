@@ -6,6 +6,7 @@
 
     title - Site title (BOOK_SITE_TITLE).
     style - Custom CSS (same as the main template).
+    base  - URL prefix the guestbook is mounted at (BOOK_BASE_PATH).
 
   Everything else is static — write whatever you want. Use <script> for
   dynamic behavior like showing the current time.
@@ -21,7 +22,7 @@
 <body>
 <div class="page-container">
 <p>Thanks! Your message is pending approval.</p>
-<p><a href="/">&#8592; back</a></p>
+<p><a href="{{base}}/">&#8592; back</a></p>
 </div>
 </body>
 </html>
