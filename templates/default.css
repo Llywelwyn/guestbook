@@ -113,7 +113,9 @@ audio {
 .entries dt:not(:first-child) {
   margin-top: 0.5rem;
 }
-.entry-date {}
+.entry-date {
+  margin-right: 1em;
+}
 .entry-name {
   font-weight: bold;
 }

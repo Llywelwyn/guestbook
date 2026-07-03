@@ -327,7 +327,7 @@ fn render_entry(entry: &Entry, config: &Config) -> String {
     let iso = &entry.meta.date[..10];
     let date = format_date(iso, &config.date_format);
     format!(
-        "<dt class=\"entry-header\" id=\"{id}\" title=\"{iso}\"><span class=\"entry-date\">{date}&emsp;</span><span class=\"entry-name\">{name_html}</span></dt>{body_html}{drawing_html}{voice_note_html}",
+        "<dt class=\"entry-header\" id=\"{id}\" title=\"{iso}\"><span class=\"entry-date\">{date}</span><span class=\"entry-name\">{name_html}</span></dt>{body_html}{drawing_html}{voice_note_html}",
         id = escape_html(&entry.id),
     )
 }
@@ -433,7 +433,7 @@ mod tests {
         let entry = make_entry("alice", "2026-04-09", "Hello!");
         let html = render_entry(&entry, &config);
         // Visible date reformatted; title keeps the ISO form.
-        assert!(html.contains(r#"<span class="entry-date">09/04/26&emsp;</span>"#));
+        assert!(html.contains(r#"<span class="entry-date">09/04/26</span>"#));
         assert!(html.contains(r#"title="2026-04-09""#));
     }
 
