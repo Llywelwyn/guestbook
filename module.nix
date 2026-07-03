@@ -30,6 +30,17 @@ in
       description = "Site title shown in nav and page title.";
     };
 
+    dateFormat = mkOption {
+      type = types.str;
+      default = "%Y-%m-%d";
+      example = "%d/%m/%y";
+      description = ''
+        strftime format for entry dates. Applied to the date portion of each
+        entry (the full ISO date is kept in the entry's title attribute).
+        Defaults to ISO YYYY-MM-DD. An invalid format falls back to the ISO date.
+      '';
+    };
+
     basePath = mkOption {
       type = types.str;
       default = "";
@@ -360,6 +371,7 @@ in
           BOOK_PORT = toString cfg.port;
           BOOK_DATA_DIR = cfg.dataDir;
           BOOK_SITE_TITLE = cfg.siteTitle;
+          BOOK_DATE_FORMAT = cfg.dateFormat;
 
           BOOK_ENABLE_SUBMISSIONS = if cfg.submissions.enable then "true" else "false";
           BOOK_ENABLE_WEBSITE_LINKS = if cfg.websites.enable then "true" else "false";

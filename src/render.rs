@@ -255,6 +255,28 @@ fn render_entries(entries: &[Entry], config: &Config) -> String {
     html
 }
 
+/// Render an ISO date (`YYYY-MM-DD`) with the given strftime format.
+///
+/// Falls back to the raw ISO string if the date can't be parsed or the format
+/// string is invalid, so a misconfigured `BOOK_DATE_FORMAT` degrades to the
+/// stored value rather than panicking.
+fn format_date(iso: &str, format: &str) -> String {
+    use std::fmt::Write;
+    match chrono::NaiveDate::parse_from_str(iso, "%Y-%m-%d") {
+        Ok(d) => {
+            let mut out = String::new();
+            // write! propagates fmt errors (from bad specifiers) instead of
+            // panicking, unlike DelayedFormat::to_string().
+            if write!(out, "{}", d.format(format)).is_ok() {
+                out
+            } else {
+                iso.to_string()
+            }
+        }
+        Err(_) => iso.to_string(),
+    }
+}
+
 fn render_entry(entry: &Entry, config: &Config) -> String {
     let name = if config.enable_html_injection {
         entry.meta.name.clone()
@@ -299,9 +321,13 @@ fn render_entry(entry: &Entry, config: &Config) -> String {
     } else {
         format!("<dd class=\"entry-body\">{body}</dd>")
     };
-    let date = &entry.meta.date[..10];
+    // Dates are stored as ISO (YYYY-MM-DD, optionally with a time suffix). The
+    // visible date is rendered with the configured strftime format; the title
+    // keeps the full ISO date so an unambiguous form is available on hover.
+    let iso = &entry.meta.date[..10];
+    let date = format_date(iso, &config.date_format);
     format!(
-        "<dt class=\"entry-header\" id=\"{id}\" title=\"{date}\"><span class=\"entry-date\">{date}&emsp;</span><span class=\"entry-name\">{name_html}</span></dt>{body_html}{drawing_html}{voice_note_html}",
+        "<dt class=\"entry-header\" id=\"{id}\" title=\"{iso}\"><span class=\"entry-date\">{date}&emsp;</span><span class=\"entry-name\">{name_html}</span></dt>{body_html}{drawing_html}{voice_note_html}",
         id = escape_html(&entry.id),
     )
 }
@@ -317,6 +343,7 @@ mod tests {
             port: 0,
             data_dir: PathBuf::from("./data"),
             site_title: "test".into(),
+            date_format: "%Y-%m-%d".into(),
 
             #[cfg(feature = "telegram")]
             telegram_bot_token: None,
@@ -375,6 +402,39 @@ mod tests {
             },
             body: body.into(),
         }
+    }
+
+    #[test]
+    fn test_format_date_default_is_iso() {
+        assert_eq!(format_date("2026-07-03", "%Y-%m-%d"), "2026-07-03");
+    }
+
+    #[test]
+    fn test_format_date_custom_format() {
+        assert_eq!(format_date("2026-07-03", "%d/%m/%y"), "03/07/26");
+    }
+
+    #[test]
+    fn test_format_date_unsupported_specifier_falls_back_to_iso() {
+        // A time specifier can't be filled from a date-only value; it must
+        // degrade to the stored value rather than panicking.
+        assert_eq!(format_date("2026-07-03", "%H:%M"), "2026-07-03");
+    }
+
+    #[test]
+    fn test_format_date_unparseable_falls_back() {
+        assert_eq!(format_date("not-a-date", "%d/%m/%y"), "not-a-date");
+    }
+
+    #[test]
+    fn test_render_entry_uses_configured_date_format() {
+        let mut config = test_config();
+        config.date_format = "%d/%m/%y".into();
+        let entry = make_entry("alice", "2026-04-09", "Hello!");
+        let html = render_entry(&entry, &config);
+        // Visible date reformatted; title keeps the ISO form.
+        assert!(html.contains(r#"<span class="entry-date">09/04/26&emsp;</span>"#));
+        assert!(html.contains(r#"title="2026-04-09""#));
     }
 
     #[test]

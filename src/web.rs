@@ -407,6 +407,7 @@ mod tests {
             port: 0,
             data_dir: dir.to_path_buf(),
             site_title: "test".into(),
+            date_format: "%Y-%m-%d".into(),
 
             #[cfg(feature = "telegram")]
             telegram_bot_token: None,

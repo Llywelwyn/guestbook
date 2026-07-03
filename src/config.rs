@@ -6,6 +6,7 @@ pub struct Config {
     pub port: u16,
     pub data_dir: PathBuf,
     pub site_title: String,
+    pub date_format: String,
 
     #[cfg(feature = "telegram")]
     pub telegram_bot_token: Option<String>,
@@ -80,6 +81,7 @@ impl Config {
                 .map(PathBuf::from)
                 .unwrap_or_else(|_| PathBuf::from("./data")),
             site_title: env::var("BOOK_SITE_TITLE").unwrap_or_else(|_| "guestbook".into()),
+            date_format: env::var("BOOK_DATE_FORMAT").unwrap_or_else(|_| "%Y-%m-%d".into()),
 
             #[cfg(feature = "telegram")]
             telegram_bot_token: env::var("BOOK_TELEGRAM_BOT_TOKEN").ok(),

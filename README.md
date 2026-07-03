@@ -98,6 +98,10 @@ Running `guestbook` with no env vars will give you a working guestbook on `local
 # Site title shown in nav and page title.
 # BOOK_SITE_TITLE=guestbook
 
+# strftime format for entry dates (e.g. %d/%m/%y). The full ISO date is kept
+# in each entry's title attribute. An invalid format falls back to the ISO date.
+# BOOK_DATE_FORMAT=%Y-%m-%d
+
 # Telegram bot token. Optional — if unset, telegram moderation is disabled.
 # BOOK_TELEGRAM_BOT_TOKEN=your-bot-token-here
 
@@ -243,6 +247,7 @@ services.guestbook = {
   port = 8123;
   dataDir = "/srv/guestbook/data";
   siteTitle = "guestbook";
+  dateFormat = "%Y-%m-%d"; # strftime; e.g. "%d/%m/%y"
   user = "guestbook";
   group = "guestbook";
 
