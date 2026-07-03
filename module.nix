@@ -371,7 +371,9 @@ in
           BOOK_PORT = toString cfg.port;
           BOOK_DATA_DIR = cfg.dataDir;
           BOOK_SITE_TITLE = cfg.siteTitle;
-          BOOK_DATE_FORMAT = cfg.dateFormat;
+          # Escape % so systemd doesn't treat strftime codes (%d, %m, %y) as
+          # unit specifiers and expand them before the program reads the value.
+          BOOK_DATE_FORMAT = builtins.replaceStrings [ "%" ] [ "%%" ] cfg.dateFormat;
 
           BOOK_ENABLE_SUBMISSIONS = if cfg.submissions.enable then "true" else "false";
           BOOK_ENABLE_WEBSITE_LINKS = if cfg.websites.enable then "true" else "false";
