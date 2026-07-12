@@ -39,6 +39,7 @@ body {
 /* Drawings */
 .guestbook-canvas {
   border: 1px solid #000;
+  background: #fff;
   cursor: crosshair;
   display: block;
   max-width: 100%;
@@ -77,6 +78,7 @@ body {
 }
 .entry-drawing {
   max-width: 100%;
+  background: #fff;
 }
 
 /* Voice notes */

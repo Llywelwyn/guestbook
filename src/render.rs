@@ -91,7 +91,11 @@ pub fn render_form(config: &Config) -> String {
   cnt.appendChild(c);bindCanvas();
   c.closest('form').addEventListener('submit',function(){{
     var px=new Uint32Array(x.getImageData(0,0,c.width,c.height).data.buffer);
-    if(px.some(function(v){{return v!==0}})){{hid.value=c.toDataURL('image/png')}}
+    if(px.some(function(v){{return v!==0}})){{
+      var f=document.createElement('canvas');f.width=c.width;f.height=c.height;
+      var fx=f.getContext('2d');fx.fillStyle='#fff';fx.fillRect(0,0,f.width,f.height);fx.drawImage(c,0,0);
+      hid.value=f.toDataURL('image/png');
+    }}
   }});
 }})();</script>"##,
             label = config.label_drawing,
@@ -235,6 +239,14 @@ pub fn render_error_page(config: &Config, error: &str) -> String {
     )
 }
 
+fn website_href(website: &str) -> String {
+    if website.contains("://") {
+        website.to_string()
+    } else {
+        format!("https://{website}")
+    }
+}
+
 fn escape_html(s: &str) -> String {
     s.replace('&', "&amp;")
         .replace('<', "&lt;")
@@ -286,7 +298,7 @@ fn render_entry(entry: &Entry, config: &Config) -> String {
     let name_html = if config.enable_website_links && !entry.meta.website.is_empty() {
         format!(
             "<a class=\"entry-website\" href=\"{}\">{}</a>",
-            escape_html(&entry.meta.website),
+            escape_html(&website_href(&entry.meta.website)),
             name
         )
     } else {
@@ -552,6 +564,24 @@ mod tests {
         let html = render_page(DEFAULT_TEMPLATE, &config, &[entry], &form);
         assert!(html.contains("href=\"https://example.com?a=1&amp;b=2\""));
         assert!(!html.contains("href=\"https://example.com?a=1&b=2\""));
+    }
+
+    #[test]
+    fn test_render_entry_prepends_scheme_to_bare_website() {
+        let config = test_config();
+        let mut entry = make_entry("bob", "2026-04-09", "Hi!");
+        entry.meta.website = "bob.com".into();
+        let form = render_form(&config);
+        let html = render_page(DEFAULT_TEMPLATE, &config, &[entry], &form);
+        assert!(html.contains(r#"href="https://bob.com">"#));
+    }
+
+    #[test]
+    fn test_render_entry_keeps_existing_scheme() {
+        assert_eq!(website_href("http://bob.com"), "http://bob.com");
+        assert_eq!(website_href("https://bob.com"), "https://bob.com");
+        assert_eq!(website_href("gemini://bob.com"), "gemini://bob.com");
+        assert_eq!(website_href("bob.com/page"), "https://bob.com/page");
     }
 
     #[test]
