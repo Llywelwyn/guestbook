@@ -1,3 +1,8 @@
+use std::collections::HashMap;
+use std::path::{Path, PathBuf};
+use std::sync::{Mutex, OnceLock};
+use std::time::SystemTime;
+
 pub const RAMP: &str = " .'`^\",:;Il!i~+_-?][}{1)(|\\/tfjrxnuvczXYUJCLQ0OZmwqpdbkhao*#MW8%B@$";
 
 /// Rows needed to keep a `width`x`height` image in proportion at `columns`
@@ -7,6 +12,21 @@ pub fn rows_for(columns: u32, width: u32, height: u32) -> u32 {
         return 0;
     }
     ((columns as f64 * height as f64 / width as f64 * 0.6).round() as u32).max(1)
+}
+
+type CacheKey = (PathBuf, u32, u64, Option<SystemTime>);
+
+pub fn render_file(path: &Path, columns: u32) -> Option<String> {
+    static CACHE: OnceLock<Mutex<HashMap<CacheKey, Option<String>>>> = OnceLock::new();
+    let meta = std::fs::metadata(path).ok()?;
+    let key = (path.to_path_buf(), columns, meta.len(), meta.modified().ok());
+    let cache = CACHE.get_or_init(Default::default);
+    if let Some(art) = cache.lock().unwrap_or_else(|e| e.into_inner()).get(&key) {
+        return art.clone();
+    }
+    let art = std::fs::read(path).ok().and_then(|bytes| render_png(&bytes, columns));
+    cache.lock().unwrap_or_else(|e| e.into_inner()).insert(key, art.clone());
+    art
 }
 
 pub fn render_png(bytes: &[u8], columns: u32) -> Option<String> {
@@ -152,6 +172,25 @@ mod tests {
         let png = encode(10, 6, png::ColorType::Grayscale, &data);
         let art = render_png(&png, 10).unwrap();
         assert_eq!(art.lines().count(), 4);
+    }
+
+    #[test]
+    fn test_render_file_rerenders_when_file_changes() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("a.png");
+        std::fs::write(&path, encode(1, 1, png::ColorType::Grayscale, &[0])).unwrap();
+        assert_eq!(render_file(&path, 1).as_deref(), Some("$"));
+        assert_eq!(render_file(&path, 1).as_deref(), Some("$"));
+        let white = encode(3, 3, png::ColorType::Rgb, &[255; 27]);
+        assert_ne!(white.len() as u64, std::fs::metadata(&path).unwrap().len());
+        std::fs::write(&path, white).unwrap();
+        assert_eq!(render_file(&path, 1), None);
+    }
+
+    #[test]
+    fn test_render_file_missing_is_none() {
+        let dir = tempfile::tempdir().unwrap();
+        assert_eq!(render_file(&dir.path().join("gone.png"), 4), None);
     }
 
     #[test]

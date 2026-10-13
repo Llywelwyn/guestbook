@@ -319,9 +319,10 @@ fn render_entry(entry: &Entry, config: &Config) -> String {
         escape_html(&entry.body)
     };
     let ascii_drawing = if !entry.meta.drawing.is_empty() && config.renders_ascii(&entry.meta.drawing_style) {
-        std::fs::read(config.data_dir.join("drawings").join(&entry.meta.drawing))
-            .ok()
-            .and_then(|bytes| ascii::render_png(&bytes, config.drawing_ascii_columns))
+        ascii::render_file(
+            &config.data_dir.join("drawings").join(&entry.meta.drawing),
+            config.drawing_ascii_columns,
+        )
     } else {
         None
     };
