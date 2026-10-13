@@ -35,12 +35,15 @@ pub struct SubmitForm {
     #[serde(default)]
     drawing: String,
     #[serde(default)]
+    drawing_style: String,
+    #[serde(default)]
     voice_note: String,
 }
 
 pub fn router(state: Arc<AppState>) -> Router {
     let inner: Router<Arc<AppState>> = Router::new()
         .route("/", get(index))
+        .route("/sign", get(sign))
         .route("/submit", post(submit))
         .route("/drawings/{filename}", get(serve_drawing))
         .route("/voice_notes/{filename}", get(serve_voice_note));
@@ -105,6 +108,13 @@ async fn index(State(state): State<Arc<AppState>>) -> Html<String> {
         &form,
     );
     Html(html)
+}
+
+async fn sign(State(state): State<Arc<AppState>>) -> Html<String> {
+    if !state.config.enable_submissions {
+        return Html(render_error_page(&state.config, "Submissions are closed."));
+    }
+    Html(render::render_sign_page(&state.config, None))
 }
 
 async fn serve_drawing(
@@ -302,6 +312,11 @@ async fn submit(
         return Html(render_error_page(&state.config, "Please leave a message, drawing, or voice note."));
     }
 
+    let drawing_style = match form.drawing_style.as_str() {
+        style if drawing_bytes.is_some() && state.config.allows_drawing_style(style) => style.to_string(),
+        _ => String::new(),
+    };
+
     let now = chrono::Utc::now();
     let date = now.format("%Y-%m-%dT%H:%M:%S").to_string();
 
@@ -368,6 +383,7 @@ async fn submit(
             name,
             date,
             website,
+            drawing_style,
             drawing: drawing_filename.clone(),
             voice_note: voice_note_filename.clone(),
             status: Status::Pending,
@@ -431,6 +447,10 @@ mod tests {
             enable_drawings: false,
             canvas_width: 400,
             canvas_height: 200,
+            drawing_ascii: false,
+            drawing_image: true,
+            drawing_ascii_default: true,
+            drawing_ascii_columns: 80,
             enable_voice_notes: false,
             voice_note_max_duration: 20,
             message_required: false,
@@ -439,6 +459,7 @@ mod tests {
             content_required: true,
             template: None,
             success_template: None,
+            sign_template: None,
             style: String::new(),
             button_text: "sign".into(),
             label_name: "name".into(),
@@ -447,8 +468,6 @@ mod tests {
             label_drawing: "drawing (optional)".into(),
             label_voice_note: "voice note (optional)".into(),
             voice_note_record_text: "record".into(),
-            textarea_width: 400,
-            textarea_height: 150,
             base_path: String::new(),
         }
     }
@@ -554,7 +573,34 @@ mod tests {
         let config = test_config(dir.path());
         let (app, _rx) = test_app(config);
         let html = get_index(&app).await;
-        assert!(html.contains("action=\"/submit\""));
+        assert!(html.contains("href=\"/sign\""));
+        let (status, bytes) = get_path(&app, "/sign").await;
+        assert_eq!(status, StatusCode::OK);
+        assert!(String::from_utf8(bytes).unwrap().contains("action=\"/submit\""));
+    }
+
+    #[tokio::test]
+    async fn test_sign_page_at_base_path() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut config = test_config(dir.path());
+        config.base_path = "/guestbook".into();
+        let (app, _rx) = test_app(config);
+        let (status, bytes) = get_path(&app, "/guestbook/sign").await;
+        assert_eq!(status, StatusCode::OK);
+        assert!(String::from_utf8(bytes).unwrap().contains("action=\"/guestbook/submit\""));
+    }
+
+    #[tokio::test]
+    async fn test_custom_sign_template() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut config = test_config(dir.path());
+        config.sign_template = Some("<main>{{error}}{{form}}</main>".into());
+        let (app, _rx) = test_app(config);
+        let (_, bytes) = get_path(&app, "/sign").await;
+        let html = String::from_utf8(bytes).unwrap();
+        assert!(html.starts_with("<main><form"));
+        let (_, body) = post_form(&app, "name=&message=").await;
+        assert!(body.starts_with("<main><p class=\"guestbook-error\">Name is required.</p><form"));
     }
 
     #[tokio::test]
@@ -565,6 +611,10 @@ mod tests {
         let (app, _rx) = test_app(config);
         let html = get_index(&app).await;
         assert!(!html.contains("action=\"/submit\""));
+        let (_, bytes) = get_path(&app, "/sign").await;
+        let html = String::from_utf8(bytes).unwrap();
+        assert!(!html.contains("action=\"/submit\""));
+        assert!(html.contains("Submissions are closed."));
     }
 
     #[tokio::test]
@@ -790,7 +840,8 @@ mod tests {
         config.captcha_question = "What is 2+2?".into();
         config.captcha_answer = "4".into();
         let (app, _rx) = test_app(config);
-        let html = get_index(&app).await;
+        let (_, bytes) = get_path(&app, "/sign").await;
+        let html = String::from_utf8(bytes).unwrap();
         assert!(html.contains("What is 2+2?"));
         assert!(html.contains("name=\"captcha\""));
     }
@@ -1094,6 +1145,39 @@ mod tests {
         );
         let (_, resp) = post_form(&app, &body).await;
         assert!(resp.contains("pending approval"));
+    }
+
+    async fn submit_drawing_with_style(ascii: bool, image: bool, style: &str) -> String {
+        let dir = tempfile::tempdir().unwrap();
+        let mut config = test_config(dir.path());
+        config.enable_drawings = true;
+        config.drawing_ascii = ascii;
+        config.drawing_image = image;
+        config.canvas_width = 400;
+        config.canvas_height = 200;
+        let (app, mut rx) = test_app(config);
+        let data_url = format!(
+            "data:image/png;base64,{}",
+            base64::engine::general_purpose::STANDARD.encode(fake_png(400, 200))
+        );
+        let body = format!(
+            "name=alice&message=&drawing={}&drawing_style={style}",
+            urlencoding::encode(&data_url)
+        );
+        post_form(&app, &body).await;
+        rx.recv().await.unwrap().0.meta.drawing_style
+    }
+
+    #[tokio::test]
+    async fn test_submit_stores_allowed_drawing_style() {
+        assert_eq!(submit_drawing_with_style(true, true, "image").await, "image");
+        assert_eq!(submit_drawing_with_style(true, true, "ascii").await, "ascii");
+    }
+
+    #[tokio::test]
+    async fn test_submit_drops_disallowed_drawing_style() {
+        assert_eq!(submit_drawing_with_style(false, true, "ascii").await, "");
+        assert_eq!(submit_drawing_with_style(true, true, "bogus").await, "");
     }
 
     #[tokio::test]

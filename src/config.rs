@@ -33,6 +33,10 @@ pub struct Config {
     pub enable_drawings: bool,
     pub canvas_width: u32,
     pub canvas_height: u32,
+    pub drawing_ascii: bool,
+    pub drawing_image: bool,
+    pub drawing_ascii_default: bool,
+    pub drawing_ascii_columns: u32,
     pub enable_voice_notes: bool,
     pub voice_note_max_duration: u32,
     pub message_required: bool,
@@ -41,6 +45,7 @@ pub struct Config {
     pub content_required: bool,
     pub template: Option<String>,
     pub success_template: Option<String>,
+    pub sign_template: Option<String>,
     pub style: String,
     pub button_text: String,
     pub label_name: String,
@@ -49,8 +54,6 @@ pub struct Config {
     pub label_drawing: String,
     pub label_voice_note: String,
     pub voice_note_record_text: String,
-    pub textarea_width: u32,
-    pub textarea_height: u32,
     pub base_path: String,
 }
 
@@ -61,6 +64,39 @@ impl Config {
 
     /// Maximum drawing file size: width * height * 4 (raw RGBA).
     /// Any valid PNG from the configured canvas will be smaller than this.
+    pub fn drawing_ascii_rows(&self) -> u32 {
+        crate::ascii::rows_for(self.drawing_ascii_columns, self.canvas_width, self.canvas_height)
+    }
+
+    pub fn drawing_style_choice(&self) -> bool {
+        self.drawing_ascii && self.drawing_image
+    }
+
+    pub fn default_drawing_style(&self) -> &'static str {
+        if self.drawing_ascii && (!self.drawing_image || self.drawing_ascii_default) {
+            "ascii"
+        } else {
+            "image"
+        }
+    }
+
+    pub fn allows_drawing_style(&self, style: &str) -> bool {
+        match style {
+            "ascii" => self.drawing_ascii,
+            "image" => self.drawing_image,
+            _ => false,
+        }
+    }
+
+    pub fn renders_ascii(&self, style: &str) -> bool {
+        let style = if self.allows_drawing_style(style) {
+            style
+        } else {
+            self.default_drawing_style()
+        };
+        style == "ascii"
+    }
+
     pub fn max_drawing_bytes(&self) -> usize {
         self.canvas_width as usize * self.canvas_height as usize * 4
     }
@@ -72,7 +108,7 @@ impl Config {
     }
 
     pub fn from_env() -> Result<Self, String> {
-        Ok(Config {
+        let config = Config {
             port: env::var("BOOK_PORT")
                 .unwrap_or_else(|_| "8123".into())
                 .parse()
@@ -153,6 +189,19 @@ impl Config {
                 .unwrap_or_else(|_| "200".into())
                 .parse()
                 .map_err(|_| "BOOK_CANVAS_HEIGHT must be a number")?,
+            drawing_ascii: env::var("BOOK_DRAWING_ASCII")
+                .map(|v| v != "false")
+                .unwrap_or(false),
+            drawing_image: env::var("BOOK_DRAWING_IMAGE")
+                .map(|v| v != "false")
+                .unwrap_or(true),
+            drawing_ascii_default: env::var("BOOK_DRAWING_ASCII_DEFAULT")
+                .map(|v| v != "false")
+                .unwrap_or(true),
+            drawing_ascii_columns: env::var("BOOK_DRAWING_ASCII_COLUMNS")
+                .unwrap_or_else(|_| "80".into())
+                .parse()
+                .map_err(|_| "BOOK_DRAWING_ASCII_COLUMNS must be a number")?,
             enable_voice_notes: env::var("BOOK_ENABLE_VOICE_NOTES")
                 .map(|v| v != "false")
                 .unwrap_or(false),
@@ -180,6 +229,10 @@ impl Config {
                 std::fs::read_to_string(&path)
                     .unwrap_or_else(|e| panic!("failed to read success template {path}: {e}"))
             }),
+            sign_template: env::var("BOOK_SIGN_TEMPLATE").ok().map(|path| {
+                std::fs::read_to_string(&path)
+                    .unwrap_or_else(|e| panic!("failed to read sign template {path}: {e}"))
+            }),
             style: env::var("BOOK_STYLE_FILE")
                 .ok()
                 .map(|path| {
@@ -201,16 +254,12 @@ impl Config {
                 .unwrap_or_else(|_| "Leave a voice note (optional)".into()),
             voice_note_record_text: env::var("BOOK_VOICE_NOTE_RECORD_TEXT")
                 .unwrap_or_else(|_| "Start recording".into()),
-            textarea_width: env::var("BOOK_TEXTAREA_WIDTH")
-                .unwrap_or_else(|_| "320".into())
-                .parse()
-                .map_err(|_| "BOOK_TEXTAREA_WIDTH must be a number")?,
-            textarea_height: env::var("BOOK_TEXTAREA_HEIGHT")
-                .unwrap_or_else(|_| "150".into())
-                .parse()
-                .map_err(|_| "BOOK_TEXTAREA_HEIGHT must be a number")?,
             base_path: normalise_base_path(env::var("BOOK_BASE_PATH").unwrap_or_default()),
-        })
+        };
+        if config.enable_drawings && !config.drawing_ascii && !config.drawing_image {
+            return Err("BOOK_DRAWING_ASCII and BOOK_DRAWING_IMAGE can't both be false".into());
+        }
+        Ok(config)
     }
 }
 
@@ -431,5 +480,18 @@ mod tests {
         assert_eq!(config.base_path, "/guestbook");
 
         env::remove_var("BOOK_BASE_PATH");
+    }
+
+    #[test]
+    fn test_rejects_drawings_with_no_style() {
+        let _lock = ENV_LOCK.lock().unwrap();
+        env::set_var("BOOK_ENABLE_DRAWINGS", "true");
+        env::set_var("BOOK_DRAWING_ASCII", "false");
+        env::set_var("BOOK_DRAWING_IMAGE", "false");
+        let result = Config::from_env();
+        env::remove_var("BOOK_ENABLE_DRAWINGS");
+        env::remove_var("BOOK_DRAWING_ASCII");
+        env::remove_var("BOOK_DRAWING_IMAGE");
+        assert!(result.is_err());
     }
 }

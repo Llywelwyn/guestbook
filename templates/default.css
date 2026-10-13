@@ -10,97 +10,87 @@ body {
 }
 
 /* Form */
-.guestbook-prompt {
-  display: block;
-  margin-bottom: 1em;
+.guestbook-error {
+  font-weight: bold;
 }
-.guestbook-form {}
 .guestbook-label {
   display: block;
   font-style: oblique;
 }
-.guestbook-label::after {
-  content: ":";
+.guestbook-pair {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1em;
 }
-.guestbook-input {
-  display: block;
-  margin-bottom: 0.4em;
-}
+.guestbook-input,
 .guestbook-textarea {
   display: block;
   box-sizing: border-box;
-  max-width: 100%;
-  margin-bottom: 0.4em;
+  width: 100%;
+  margin-bottom: 0.6em;
+  font: inherit;
 }
-.guestbook-button {
-  display: block;
+.guestbook-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5em;
+  margin-bottom: 0.6em;
 }
 
 /* Drawings */
+.guestbook-pad {
+  position: relative;
+  width: fit-content;
+  max-width: 100%;
+  margin-bottom: 0.4em;
+}
 .guestbook-canvas {
-  border: 1px solid #000;
-  background: #fff;
-  cursor: crosshair;
   display: block;
   max-width: 100%;
   height: auto;
-}
-.guestbook-drawing-wrap {
-  display: block;
-  margin-bottom: 0.4em;
-}
-.guestbook-drawing-tools {
-  display: block;
-}
-.guestbook-drawing-tools a {
-  cursor: pointer;
-}
-.guestbook-drawing-content {
-  display: block;
-}
-.guestbook-swatch {
-  display: inline-block;
-  width: 0.85em;
-  height: 0.85em;
   border: 1px solid #000;
-  cursor: pointer;
-  vertical-align: middle;
-  box-sizing: border-box;
-  margin: 0 1px;
+  background: #fff;
+  cursor: crosshair;
+  touch-action: none;
 }
-.guestbook-swatch.active {
+.guestbook-pad-ascii {
   border: 1px solid #000;
-  outline: 1px solid #000;
+}
+.guestbook-pad-art {
+  margin: 0;
+  line-height: 1;
+}
+.guestbook-pad:not(.guestbook-pad-ascii) .guestbook-pad-art {
+  display: none;
+}
+.guestbook-tool[aria-pressed="true"] {
+  font-weight: bold;
+}
+.guestbook-pad-ascii .guestbook-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  opacity: 0;
 }
 .guestbook-size-slider {
-  width: 4em;
-  vertical-align: middle;
+  width: 6em;
 }
 .entry-drawing {
   max-width: 100%;
   background: #fff;
 }
+.entry-drawing-ascii {
+  margin: 0;
+  line-height: 1;
+  overflow: hidden;
+}
 
 /* Voice notes */
-.guestbook-voice-wrap {
-  display: block;
-  margin-bottom: 0.4em;
-}
-.guestbook-voice-controls a {
-  cursor: pointer;
-}
-.guestbook-voice-record.recording {
-  color: red;
-}
-.guestbook-voice-timer {
-  font-variant-numeric: tabular-nums;
-}
 .guestbook-voice-playback:empty {
   display: none;
-}
-.guestbook-voice-playback {
-  display: block;
-  white-space: normal;
 }
 audio {
   display: block;

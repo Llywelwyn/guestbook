@@ -43,6 +43,8 @@ pub struct EntryMeta {
     pub website: String,
     #[serde(default)]
     pub drawing: String,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub drawing_style: String,
     #[serde(default)]
     pub voice_note: String,
     pub status: Status,

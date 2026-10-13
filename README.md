@@ -159,13 +159,14 @@ Running `guestbook` with no env vars will give you a working guestbook on `local
 # BOOK_STYLE_FILE=./templates/default.css
 
 # Custom CSS injected into a style tag.
-# Classes: .guestbook-form, .guestbook-label, .guestbook-input, .guestbook-textarea,
-#          .guestbook-button, .guestbook-canvas, .guestbook-drawing-wrap,
-#          .guestbook-drawing-tools, .guestbook-drawing-content, .guestbook-swatch,
-#          .guestbook-size-slider, .guestbook-voice-wrap, .guestbook-voice-controls,
-#          .guestbook-voice-record, .guestbook-voice-timer, .guestbook-voice-playback,
+# Classes: .guestbook-error, .guestbook-form, .guestbook-pair, .guestbook-field,
+#          .guestbook-label, .guestbook-input, .guestbook-textarea, .guestbook-row,
+#          .guestbook-button, .guestbook-tool, .guestbook-pad, .guestbook-pad-ascii,
+#          .guestbook-pad-art, .guestbook-canvas, .guestbook-drawing-tools,
+#          .guestbook-size-slider, .guestbook-voice-controls, .guestbook-voice-playback,
 #          .entries, .entry-header, .entry-date, .entry-name, .entry-website,
-#          .entry-body, .entry-drawing-wrap, .entry-drawing, .entry-voice-note-wrap
+#          .entry-body, .entry-drawing-wrap, .entry-drawing, .entry-drawing-ascii,
+#          .entry-voice-note-wrap
 # BOOK_STYLE=
 
 # Submit button text.
@@ -189,15 +190,14 @@ Running `guestbook` with no env vars will give you a working guestbook on `local
 # Initial text on the voice note record button.
 # BOOK_VOICE_NOTE_RECORD_TEXT=Start recording
 
-# Message textarea width in pixels.
-# BOOK_TEXTAREA_WIDTH=320
-
-# Message textarea height in pixels.
-# BOOK_TEXTAREA_HEIGHT=150
-
 # Custom HTML template file with {{title}}, {{form}}, {{entries}}, {{style}}, and {{base}} placeholders.
 # Uses built-in default if unset.
 # BOOK_TEMPLATE=./templates/default.html
+
+# Custom sign page template, served at /sign. Supports {{title}}, {{error}}, {{form}},
+# {{style}}, and {{base}} placeholders. Rejected submissions re-render this page with {{error}} filled.
+# Uses built-in templates/sign.html if unset.
+# BOOK_SIGN_TEMPLATE=./templates/sign.html
 
 # Custom success page template shown after a successful submission.
 # Supports {{title}}, {{style}}, and {{base}} placeholders. Use <script> for dynamic behavior.
@@ -205,7 +205,7 @@ Running `guestbook` with no env vars will give you a working guestbook on `local
 # BOOK_SUCCESS_TEMPLATE=./templates/success.html
 
 # URL prefix the guestbook is mounted at. Empty serves at the domain root.
-# When set (e.g. /guestbook), all routes (/, /submit, /drawings/*, /voice_notes/*)
+# When set (e.g. /guestbook), all routes (/, /sign, /submit, /drawings/*, /voice_notes/*)
 # are mounted under the prefix, and form actions and asset URLs include it.
 # Templates can interpolate the prefix with the {{base}} placeholder.
 # BOOK_BASE_PATH=
@@ -218,6 +218,21 @@ Running `guestbook` with no env vars will give you a working guestbook on `local
 
 # Drawing canvas height in pixels.
 # BOOK_CANVAS_HEIGHT=200
+
+# Allow drawings shown as normal images.
+# BOOK_DRAWING_IMAGE=true
+
+# Allow drawings shown as ASCII text, on the canvas while drawing and in entries.
+# With both styles allowed, visitors choose per drawing; with one, it's forced.
+# PNGs are always stored, so these can be changed freely.
+# BOOK_DRAWING_ASCII=false
+
+# Start the canvas in ASCII mode when visitors can choose. Also used for drawings
+# with no recorded choice.
+# BOOK_DRAWING_ASCII_DEFAULT=true
+
+# Width of an ASCII drawing in characters. Rows follow from the drawing's aspect ratio.
+# BOOK_DRAWING_ASCII_COLUMNS=80
 
 # Enable voice note recording in submission form. Voice notes are stored as WebM files in DATA_DIR/voice_notes/.
 # BOOK_ENABLE_VOICE_NOTES=false
@@ -268,6 +283,12 @@ services.guestbook = {
   drawing = {
     enable = false;
     required = false;
+    image.enable = true;
+    ascii = {
+      enable = false;
+      default = true;
+      columns = 80;
+    };
   };
 
   voice = {
@@ -316,6 +337,7 @@ services.guestbook = {
     css = "";
     cssFile = null;
     templateFile = null;
+    signTemplateFile = null;
     successTemplateFile = null;
     labels = {
       submit = "Submit Entry";
@@ -326,10 +348,6 @@ services.guestbook = {
       voice = "Leave a voice note (optional)";
       voiceRecord = "Start recording";
     };
-    message = {
-      width = 320;
-      height = 150;
-    };
   };
 };
 ```
@@ -338,9 +356,11 @@ services.guestbook = {
 
 ### Drawing
 
-Set `BOOK_ENABLE_DRAWINGS=true` to add a drawing canvas to the form. Visitors draw with mouse or touch; on submit, the canvas is converted to a base64 PNG data URL in a hidden field. Drawings are stored as PNGs in `{data_dir}/drawings/` and rendered above the message body, independent of the HTML injection setting.
+Set `BOOK_ENABLE_DRAWINGS=true` to add a drawing canvas to the form. Visitors draw in black with mouse or touch, with a brush size slider and undo/clear buttons; on submit, the canvas is converted to a base64 PNG data URL in a hidden field. Drawings are stored as PNGs in `{data_dir}/drawings/` and rendered above the message body, independent of the HTML injection setting.
 
 Server-side validation checks the PNG magic bytes (`\x89PNG\r\n\x1a\n`), then reads width/height from the IHDR chunk and rejects anything that doesn't match `BOOK_CANVAS_WIDTH` x `BOOK_CANVAS_HEIGHT`. Max file size is derived from canvas dimensions (`w * h * 4`, the raw RGBA ceiling). A 2MB request body limit is enforced on all form submissions.
+
+Set `BOOK_DRAWING_ASCII=true` to allow drawings as ASCII text. With `BOOK_DRAWING_IMAGE` left on, the canvas gets ASCII and Normal buttons and each visitor picks; the choice is saved as `drawing_style` in the entry, and entries without one use `BOOK_DRAWING_ASCII_DEFAULT`. Set `BOOK_DRAWING_IMAGE=false` to force ASCII for every drawing, old ones included. In ASCII mode the canvas becomes an invisible layer over a grid of glyphs that redraws as the visitor draws, and entries show each stored PNG converted to the same glyphs server-side, `BOOK_DRAWING_ASCII_COLUMNS` characters wide. Darker cells get denser glyphs. The PNGs are always what's stored, so changing these settings loses nothing.
 
 When Telegram moderation is enabled, the notification includes a `/drawing_<id>` command to view the drawing on demand.
 
@@ -348,7 +368,7 @@ When Telegram moderation is enabled, the notification includes a `/drawing_<id>`
 
 ### Voice Notes
 
-Set `BOOK_ENABLE_VOICE_NOTES=true` to let visitors record a short audio clip alongside their message. Recording uses the browser's MediaRecorder API (WebM/Opus format). The form shows an "add a voice note" link that starts recording on click, with a timer counting up to the configured max duration (`BOOK_VOICE_NOTE_MAX_DURATION`, default 20 seconds). After recording, visitors can listen back, re-record, or discard.
+Set `BOOK_ENABLE_VOICE_NOTES=true` to let visitors record a short audio clip alongside their message. Recording uses the browser's MediaRecorder API (WebM/Opus format). The form shows a record button that starts recording on click, with a timer counting up to the configured max duration (`BOOK_VOICE_NOTE_MAX_DURATION`, default 20 seconds). After recording, visitors can listen back, re-record, or discard.
 
 Server-side validation checks the WebM magic bytes (`\x1a\x45\xdf\xa3`) and enforces a file size cap derived from the max duration (`duration * 10KB`). Voice notes are stored as WebM files in `{data_dir}/voice_notes/` and rendered as native `<audio>` elements below the entry header, independent of the HTML injection setting.
 
@@ -404,6 +424,7 @@ name = "someone"
 date = "2026-04-09T12:00:00"
 website = "https://example.com"
 drawing = "ab3c.png"
+drawing_style = "ascii"
 voice_note = "ab3c.webm"
 status = "approved"
 +++
@@ -415,7 +436,7 @@ entered into the 'message' field.
 >>  yourself, or /reply_<id> to the bot.
 ```
 
-`status` is either `pending`, `approved`, or `denied`. Only approved entries are displayed. `drawing` and `voice_note` fields link to their respective attachments, or nothing if they're empty. State is all stored in these files so you can moderate however you like, either via the built-in bot or just by manually editing the `status` field yourself.
+`status` is either `pending`, `approved`, or `denied`. Only approved entries are displayed. `drawing` and `voice_note` fields link to their respective attachments, or nothing if they're empty. `drawing_style` is `ascii` or `image`, recording how the visitor chose to show their drawing; it's omitted when ASCII drawings are off. State is all stored in these files so you can moderate however you like, either via the built-in bot or just by manually editing the `status` field yourself.
 
 ---
 
@@ -433,10 +454,8 @@ entered into the 'message' field.
   Available placeholders:
 
     title   - Site title (BOOK_SITE_TITLE). Useful in <title> and headings.
-    form    - The submission form (labels, inputs, button). Controlled by
-              BOOK_LABEL_NAME, BOOK_LABEL_WEBSITE, BOOK_LABEL_MESSAGE,
-              BOOK_LABEL_DRAWING, BOOK_LABEL_VOICE_NOTE, BOOK_BUTTON_TEXT,
-              BOOK_TEXTAREA_WIDTH, BOOK_TEXTAREA_HEIGHT. Empty when
+    form    - The submission form, for templates that want it inline rather
+              than on the sign page (see sign.html). Empty when
               BOOK_ENABLE_SUBMISSIONS=false.
     entries - Approved guestbook entries, newest first.
     style   - Custom CSS from BOOK_STYLE or BOOK_STYLE_FILE, wrapped in
@@ -458,13 +477,47 @@ entered into the 'message' field.
 <div class="page-container">
 <h1>{{title}}</h1>
 
-<details class="guestbook-details">
-<summary class="guestbook-summary">Click me to leave an entry</summary>
-{{form}}
-</details>
+<p><a href="{{base}}/sign">Sign the guestbook</a></p>
 
 <h1>entries</h1>
 {{entries}}
+</div>
+</body>
+</html>
+```
+
+#### Sign Page
+
+```html
+<!--
+  Default sign page, served at /sign.
+  Copy this file and point BOOK_SIGN_TEMPLATE at your copy to customize.
+
+  Available placeholders:
+
+    title - Site title (BOOK_SITE_TITLE).
+    error - A paragraph (class guestbook-error) explaining why the last submission
+            was rejected. Empty on a fresh visit.
+    form  - The submission form (labels, inputs, buttons). Controlled by
+            BOOK_LABEL_NAME, BOOK_LABEL_WEBSITE, BOOK_LABEL_MESSAGE,
+            BOOK_LABEL_DRAWING, BOOK_LABEL_VOICE_NOTE, BOOK_BUTTON_TEXT.
+            Empty when BOOK_ENABLE_SUBMISSIONS=false.
+    style - Custom CSS (same as the main template).
+    base  - URL prefix the guestbook is mounted at (BOOK_BASE_PATH).
+-->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{title}}</title>
+  {{style}}
+</head>
+<body>
+<div class="page-container">
+<p><a href="{{base}}/">&#8592; back</a></p>
+{{error}}
+{{form}}
 </div>
 </body>
 </html>
@@ -518,95 +571,81 @@ body {
 }
 
 /* Form */
-.guestbook-prompt {
-  display: block;
-  margin-bottom: 1em;
+.guestbook-error {
+  font-weight: bold;
 }
-.guestbook-form {}
 .guestbook-label {
   display: block;
   font-style: oblique;
 }
-.guestbook-label::after {
-  content: ":";
+.guestbook-pair {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1em;
 }
-.guestbook-input {
-  display: block;
-  margin-bottom: 0.4em;
-}
+.guestbook-input,
 .guestbook-textarea {
   display: block;
   box-sizing: border-box;
-  max-width: 100%;
-  margin-bottom: 0.4em;
+  width: 100%;
+  margin-bottom: 0.6em;
+  font: inherit;
 }
-.guestbook-button {
-  display: block;
+.guestbook-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5em;
+  margin-bottom: 0.6em;
 }
 
 /* Drawings */
+.guestbook-pad {
+  position: relative;
+  width: fit-content;
+  max-width: 100%;
+  margin-bottom: 0.4em;
+}
 .guestbook-canvas {
-  border: 1px solid #000;
-  cursor: crosshair;
   display: block;
   max-width: 100%;
   height: auto;
-}
-.guestbook-drawing-wrap {
-  display: block;
-  margin-bottom: 0.4em;
-}
-.guestbook-drawing-tools {
-  display: block;
-}
-.guestbook-drawing-tools a {
-  cursor: pointer;
-}
-.guestbook-drawing-content {
-  display: block;
-}
-.guestbook-swatch {
-  display: inline-block;
-  width: 0.85em;
-  height: 0.85em;
   border: 1px solid #000;
-  cursor: pointer;
-  vertical-align: middle;
-  box-sizing: border-box;
-  margin: 0 1px;
+  background: #fff;
+  cursor: crosshair;
+  touch-action: none;
 }
-.guestbook-swatch.active {
+.guestbook-pad-ascii {
   border: 1px solid #000;
-  outline: 1px solid #000;
+}
+.guestbook-pad-art {
+  margin: 0;
+  line-height: 1;
+}
+.guestbook-pad-ascii .guestbook-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  opacity: 0;
 }
 .guestbook-size-slider {
-  width: 4em;
-  vertical-align: middle;
+  width: 6em;
 }
 .entry-drawing {
   max-width: 100%;
+  background: #fff;
+}
+.entry-drawing-ascii {
+  margin: 0;
+  line-height: 1;
+  overflow: hidden;
 }
 
 /* Voice notes */
-.guestbook-voice-wrap {
-  display: block;
-  margin-bottom: 0.4em;
-}
-.guestbook-voice-controls a {
-  cursor: pointer;
-}
-.guestbook-voice-record.recording {
-  color: red;
-}
-.guestbook-voice-timer {
-  font-variant-numeric: tabular-nums;
-}
 .guestbook-voice-playback:empty {
   display: none;
-}
-.guestbook-voice-playback {
-  display: block;
-  white-space: normal;
 }
 audio {
   display: block;
@@ -621,7 +660,9 @@ audio {
 .entries dt:not(:first-child) {
   margin-top: 0.5rem;
 }
-.entry-date {}
+.entry-date {
+  margin-right: 1em;
+}
 .entry-name {
   font-weight: bold;
 }

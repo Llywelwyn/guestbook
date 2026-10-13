@@ -1,0 +1,32 @@
+<!--
+  Default sign page, served at /sign.
+  Copy this file and point BOOK_SIGN_TEMPLATE at your copy to customize.
+
+  Available placeholders:
+
+    title - Site title (BOOK_SITE_TITLE).
+    error - A paragraph (class guestbook-error) explaining why the last submission
+            was rejected. Empty on a fresh visit.
+    form  - The submission form (labels, inputs, buttons). Controlled by
+            BOOK_LABEL_NAME, BOOK_LABEL_WEBSITE, BOOK_LABEL_MESSAGE,
+            BOOK_LABEL_DRAWING, BOOK_LABEL_VOICE_NOTE, BOOK_BUTTON_TEXT.
+            Empty when BOOK_ENABLE_SUBMISSIONS=false.
+    style - Custom CSS (same as the main template).
+    base  - URL prefix the guestbook is mounted at (BOOK_BASE_PATH).
+-->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{title}}</title>
+  {{style}}
+</head>
+<body>
+<div class="page-container">
+<p><a href="{{base}}/">&#8592; back</a></p>
+{{error}}
+{{form}}
+</div>
+</body>
+</html>

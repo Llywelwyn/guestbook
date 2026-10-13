@@ -123,6 +123,34 @@ in
         default = false;
         description = "Require a drawing on every submission. No-op when drawing.enable=false.";
       };
+
+      image = {
+        enable = mkOption {
+          type = types.bool;
+          default = true;
+          description = "Allow drawings shown as normal images. With ascii.enable also on, visitors choose per drawing; with it off, ASCII is forced.";
+        };
+      };
+
+      ascii = {
+        enable = mkOption {
+          type = types.bool;
+          default = false;
+          description = "Allow drawings shown as ASCII text, both on the canvas while drawing and in entries. With image.enable also on, visitors choose per drawing; with it off, ASCII is forced. The PNGs are always stored, so these can be changed freely.";
+        };
+
+        default = mkOption {
+          type = types.bool;
+          default = true;
+          description = "Start the canvas in ASCII mode when visitors can choose. Also used for drawings with no recorded choice.";
+        };
+
+        columns = mkOption {
+          type = types.int;
+          default = 80;
+          description = "Width of an ASCII drawing in characters. Rows follow from the drawing's aspect ratio.";
+        };
+      };
     };
 
     voice = {
@@ -294,6 +322,12 @@ in
         description = "Custom HTML template file with {{title}}, {{form}}, {{entries}}, {{style}}, and {{base}} placeholders. Uses built-in default if null.";
       };
 
+      signTemplateFile = mkOption {
+        type = types.nullOr types.path;
+        default = null;
+        description = "Custom sign page template with {{title}}, {{error}}, {{form}}, {{style}}, and {{base}} placeholders. Uses built-in default if null.";
+      };
+
       successTemplateFile = mkOption {
         type = types.nullOr types.path;
         default = null;
@@ -343,20 +377,6 @@ in
           description = "Initial text on the voice note record button.";
         };
       };
-
-      message = {
-        width = mkOption {
-          type = types.int;
-          default = 320;
-          description = "Message textarea width in pixels.";
-        };
-
-        height = mkOption {
-          type = types.int;
-          default = 150;
-          description = "Message textarea height in pixels.";
-        };
-      };
     };
   };
 
@@ -398,19 +418,23 @@ in
           BOOK_VOICE_NOTE_RECORD_TEXT = cfg.styles.labels.voiceRecord;
           BOOK_CANVAS_WIDTH = toString cfg.limits.drawing.width;
           BOOK_CANVAS_HEIGHT = toString cfg.limits.drawing.height;
+          BOOK_DRAWING_ASCII = if cfg.drawing.ascii.enable then "true" else "false";
+          BOOK_DRAWING_IMAGE = if cfg.drawing.image.enable then "true" else "false";
+          BOOK_DRAWING_ASCII_DEFAULT = if cfg.drawing.ascii.default then "true" else "false";
+          BOOK_DRAWING_ASCII_COLUMNS = toString cfg.drawing.ascii.columns;
           BOOK_ENABLE_VOICE_NOTES = if cfg.voice.enable then "true" else "false";
           BOOK_VOICE_NOTE_MAX_DURATION = toString cfg.limits.voice.duration;
           BOOK_MESSAGE_REQUIRED = if cfg.message.required then "true" else "false";
           BOOK_DRAWING_REQUIRED = if cfg.drawing.required then "true" else "false";
           BOOK_VOICE_NOTE_REQUIRED = if cfg.voice.required then "true" else "false";
           BOOK_CONTENT_REQUIRED = if cfg.content.required then "true" else "false";
-          BOOK_TEXTAREA_WIDTH = toString cfg.styles.message.width;
-          BOOK_TEXTAREA_HEIGHT = toString cfg.styles.message.height;
           BOOK_BASE_PATH = cfg.basePath;
         } // lib.optionalAttrs (cfg.styles.cssFile != null) {
           BOOK_STYLE_FILE = cfg.styles.cssFile;
         } // lib.optionalAttrs (cfg.styles.templateFile != null) {
           BOOK_TEMPLATE = cfg.styles.templateFile;
+        } // lib.optionalAttrs (cfg.styles.signTemplateFile != null) {
+          BOOK_SIGN_TEMPLATE = cfg.styles.signTemplateFile;
         } // lib.optionalAttrs (cfg.styles.successTemplateFile != null) {
           BOOK_SUCCESS_TEMPLATE = cfg.styles.successTemplateFile;
         } // lib.optionalAttrs cfg.telegram.enable {

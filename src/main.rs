@@ -1,3 +1,4 @@
+mod ascii;
 mod config;
 mod entries;
 mod render;

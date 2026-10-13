@@ -1,30 +1,200 @@
+use crate::ascii;
 use crate::config::Config;
 use crate::entries::Entry;
 
 pub const DEFAULT_TEMPLATE: &str = include_str!("../templates/default.html");
+pub const DEFAULT_SIGN_TEMPLATE: &str = include_str!("../templates/sign.html");
 pub const DEFAULT_SUCCESS_TEMPLATE: &str = include_str!("../templates/success.html");
 pub const DEFAULT_STYLE: &str = include_str!("../templates/default.css");
 
-pub fn render_page(template: &str, config: &Config, entries: &[Entry], form_html: &str) -> String {
-    let entries_html = render_entries(entries, config);
+fn style_tag(config: &Config) -> String {
     let css = if config.style.is_empty() {
         DEFAULT_STYLE
     } else {
         &config.style
     };
-    let style = format!("<style>\n{css}\n  </style>");
+    format!("<style>\n{css}\n  </style>")
+}
+
+pub fn render_page(template: &str, config: &Config, entries: &[Entry], form_html: &str) -> String {
+    let entries_html = render_entries(entries, config);
     template
         .replace("{{title}}", &config.site_title)
         .replace("{{form}}", form_html)
         .replace("{{entries}}", &entries_html)
-        .replace("{{style}}", &style)
+        .replace("{{style}}", &style_tag(config))
         .replace("{{base}}", &config.base_path)
+}
+
+pub fn render_sign_page(config: &Config, error: Option<&str>) -> String {
+    let template = config.sign_template.as_deref().unwrap_or(DEFAULT_SIGN_TEMPLATE);
+    let form = if config.enable_submissions {
+        render_form(config)
+    } else {
+        String::new()
+    };
+    let error = error
+        .map(|e| format!("<p class=\"guestbook-error\">{}</p>", escape_html(e)))
+        .unwrap_or_default();
+    template
+        .replace("{{title}}", &config.site_title)
+        .replace("{{error}}", &error)
+        .replace("{{form}}", &form)
+        .replace("{{style}}", &style_tag(config))
+        .replace("{{base}}", &config.base_path)
+}
+
+fn js_string(s: &str) -> String {
+    let mut out = String::from("\"");
+    for c in s.chars() {
+        match c {
+            '\\' => out.push_str("\\\\"),
+            '"' => out.push_str("\\\""),
+            '<' => out.push_str("\\x3c"),
+            _ => out.push(c),
+        }
+    }
+    out.push('"');
+    out
+}
+
+fn render_drawing_section(config: &Config) -> String {
+    let w = config.canvas_width;
+    let h = config.canvas_height;
+    let max_size = (w / 16).max(20);
+    let size = (w / 45).max(5);
+    let (art, styles, columns, rows) = if config.drawing_ascii {
+        let buttons = if config.drawing_style_choice() {
+            "<button type=\"button\" class=\"guestbook-tool\" data-style=\"ascii\">ASCII</button><button type=\"button\" class=\"guestbook-tool\" data-style=\"image\">Normal</button>"
+        } else {
+            ""
+        };
+        (
+            "<pre class=\"guestbook-pad-art\" aria-hidden=\"true\"></pre>",
+            format!(
+                "{buttons}<input type=\"hidden\" name=\"drawing_style\" value=\"{}\">",
+                config.default_drawing_style()
+            ),
+            config.drawing_ascii_columns,
+            config.drawing_ascii_rows(),
+        )
+    } else {
+        ("", String::new(), 0, 0)
+    };
+    format!(
+        r##"<span class="guestbook-label">{label}</span>
+<div class="guestbook-pad">{art}<canvas class="guestbook-canvas" width="{w}" height="{h}" aria-label="Drawing canvas"></canvas></div>
+<div class="guestbook-row guestbook-drawing-tools">{styles}<input type="range" class="guestbook-size-slider" min="1" max="{max_size}" value="{size}" aria-label="Brush size"><button type="button" class="guestbook-tool" data-action="undo">Undo</button><button type="button" class="guestbook-tool" data-action="clear">Clear</button></div>
+<input type="hidden" name="drawing"><script>(function(){{
+  var pad=document.querySelector('.guestbook-pad'),c=pad.querySelector('canvas'),x=c.getContext('2d'),art=pad.querySelector('pre'),
+      tools=document.querySelector('.guestbook-drawing-tools'),sl=tools.querySelector('.guestbook-size-slider'),hid=document.querySelector('[name=drawing]'),
+      W=c.width,H=c.height,R={ramp},C={columns},N={rows},d=false,lx,ly,h=[],
+      style=document.querySelector('[name=drawing_style]');
+  x.lineCap='round';x.lineJoin='round';x.strokeStyle='#000';x.fillStyle='#000';x.lineWidth=+sl.value;
+  function setStyle(s){{
+    style.value=s;pad.classList.toggle('guestbook-pad-ascii',s==='ascii');
+    tools.querySelectorAll('[data-style]').forEach(function(b){{b.setAttribute('aria-pressed',b.dataset.style===s)}});
+    show();
+  }}
+  if(style)tools.querySelectorAll('[data-style]').forEach(function(b){{b.addEventListener('click',function(){{setStyle(b.dataset.style)}})}});
+  function show(){{
+    if(!art||style.value!=='ascii')return;
+    var p=x.getImageData(0,0,W,H).data,s='';
+    for(var r=0;r<N;r++){{
+      var y0=Math.floor(r*H/N),y1=Math.min(H,Math.max(y0+1,Math.floor((r+1)*H/N)));
+      for(var q=0;q<C;q++){{
+        var x0=Math.floor(q*W/C),x1=Math.min(W,Math.max(x0+1,Math.floor((q+1)*W/C))),t=0;
+        for(var yy=y0;yy<y1;yy++)for(var xx=x0;xx<x1;xx++)t+=p[(yy*W+xx)*4+3];
+        s+=R[Math.floor(Math.floor(t/((y1-y0)*(x1-x0)))*(R.length-1)/255)];
+      }}
+      s+='\n';
+    }}
+    art.textContent=s;
+  }}
+  function pos(e){{var b=c.getBoundingClientRect(),t=e.touches?e.touches[0]:e;return[(t.clientX-b.left)*W/b.width,(t.clientY-b.top)*H/b.height]}}
+  function save(){{if(h.length>=20)h.shift();h.push(x.getImageData(0,0,W,H))}}
+  function down(e){{e.preventDefault();save();d=true;var p=pos(e);lx=p[0];ly=p[1];x.beginPath();x.arc(lx,ly,x.lineWidth/2,0,Math.PI*2);x.fill();show()}}
+  function move(e){{if(!d)return;e.preventDefault();var p=pos(e);x.beginPath();x.moveTo(lx,ly);x.lineTo(p[0],p[1]);x.stroke();lx=p[0];ly=p[1];show()}}
+  function up(){{d=false}}
+  c.addEventListener('mousedown',down);c.addEventListener('mousemove',move);window.addEventListener('mouseup',up);
+  c.addEventListener('touchstart',down);c.addEventListener('touchmove',move);c.addEventListener('touchend',up);
+  sl.addEventListener('input',function(){{x.lineWidth=+sl.value}});
+  tools.querySelector('[data-action=undo]').addEventListener('click',function(){{if(h.length){{x.putImageData(h.pop(),0,0);show()}}}});
+  tools.querySelector('[data-action=clear]').addEventListener('click',function(){{save();x.clearRect(0,0,W,H);hid.value='';show()}});
+  c.closest('form').addEventListener('submit',function(){{
+    var px=x.getImageData(0,0,W,H).data,ink=false;
+    for(var i=3;i<px.length;i+=4)if(px[i]){{ink=true;break}}
+    if(!ink){{hid.value='';return}}
+    var f=document.createElement('canvas');f.width=W;f.height=H;
+    var fx=f.getContext('2d');fx.fillStyle='#fff';fx.fillRect(0,0,W,H);fx.drawImage(c,0,0);
+    hid.value=f.toDataURL('image/png');
+  }});
+  if(style)setStyle(style.value);
+}})();</script>
+"##,
+        label = config.label_drawing,
+        ramp = js_string(ascii::RAMP),
+    )
+}
+
+fn render_voice_section(config: &Config) -> String {
+    format!(
+        r##"<span class="guestbook-label">{label}</span>
+<div class="guestbook-row guestbook-voice-controls"></div><div class="guestbook-voice-playback"></div><input type="hidden" name="voice_note"><script>(function(){{
+  var maxDur={max_dur},
+      ctl=document.querySelector('.guestbook-voice-controls'),
+      pb=document.querySelector('.guestbook-voice-playback'),
+      hid=document.querySelector('[name=voice_note]'),
+      rec=null,chunks=[],iv=null,st=0;
+  function fmt(s){{var m=Math.floor(s/60),sec=s%60;return m+':'+(sec<10?'0':'')+sec}}
+  function button(text,fn){{var b=document.createElement('button');b.type='button';b.className='guestbook-tool';b.textContent=text;b.addEventListener('click',fn);ctl.appendChild(b);return b}}
+  function stop(){{rec.stop();rec.stream.getTracks().forEach(function(t){{t.stop()}})}}
+  function setInit(){{
+    if(rec&&rec.state==='recording')stop();
+    rec=null;chunks=[];clearInterval(iv);iv=null;pb.innerHTML='';hid.value='';ctl.innerHTML='';
+    button({record},startRec);
+  }}
+  function setRec(){{
+    ctl.innerHTML='';
+    var b=button('',stop);b.classList.add('recording');b.setAttribute('aria-live','polite');
+    st=Date.now();b.textContent='Stop '+fmt(0)+' / '+fmt(maxDur);
+    iv=setInterval(function(){{
+      var el=Math.floor((Date.now()-st)/1000);b.textContent='Stop '+fmt(el)+' / '+fmt(maxDur);
+      if(el>=maxDur)stop();
+    }},250);
+  }}
+  function setResult(){{
+    clearInterval(iv);iv=null;
+    var blob=new Blob(chunks,{{type:'audio/webm;codecs=opus'}});
+    ctl.innerHTML='';
+    button('Re-record',function(){{setInit();startRec()}});
+    button('Discard',setInit);
+    var au=document.createElement('audio');au.controls=true;au.preload='metadata';au.src=URL.createObjectURL(blob);
+    pb.appendChild(au);
+    var rd=new FileReader();rd.onload=function(){{hid.value=rd.result}};rd.readAsDataURL(blob);
+  }}
+  function startRec(){{
+    chunks=[];hid.value='';pb.innerHTML='';
+    navigator.mediaDevices.getUserMedia({{audio:true}}).then(function(stream){{
+      rec=new MediaRecorder(stream,{{mimeType:'audio/webm;codecs=opus'}});
+      rec.ondataavailable=function(e){{if(e.data.size>0)chunks.push(e.data)}};
+      rec.onstop=setResult;
+      rec.start();setRec();
+    }}).catch(function(){{ctl.textContent='Microphone access denied.'}});
+  }}
+  setInit();
+}})();</script>
+"##,
+        label = config.label_voice_note,
+        record = js_string(&config.voice_note_record_text),
+        max_dur = config.voice_note_max_duration,
+    )
 }
 
 pub fn render_form(config: &Config) -> String {
     let website_section = if config.enable_website_links {
         format!(
-            "<label class=\"guestbook-label\" for=\"website\">{label}</label>\n<input class=\"guestbook-input\" id=\"website\" name=\"website\">\n",
+            "<div class=\"guestbook-field\"><label class=\"guestbook-label\" for=\"website\">{label}</label><input class=\"guestbook-input\" id=\"website\" name=\"website\"></div>",
             label = config.label_website
         )
     } else {
@@ -41,202 +211,41 @@ pub fn render_form(config: &Config) -> String {
     };
 
     let drawing_section = if config.enable_drawings {
-        format!(
-            r##"<span class="guestbook-label">{label}</span>
-<span class="guestbook-drawing-wrap"><span class="guestbook-drawing-tools"></span><span class="guestbook-drawing-content"></span></span><input type="hidden" name="drawing"><script>(function(){{
-  var inl=document.querySelector('.guestbook-drawing-tools'),
-      cnt=document.querySelector('.guestbook-drawing-content'),
-      hid=document.querySelector('[name=drawing]'),
-      c,x,d=false,lx,ly,h=[],col='#000',sz=5;
-  function pos(e){{var r=c.getBoundingClientRect(),sx=c.width/r.width,sy=c.height/r.height;return[(e.clientX-r.left)*sx,(e.clientY-r.top)*sy]}}
-  function tpos(e){{var r=c.getBoundingClientRect(),t=e.touches[0],sx=c.width/r.width,sy=c.height/r.height;return[(t.clientX-r.left)*sx,(t.clientY-r.top)*sy]}}
-  function save(){{if(h.length>=20)h.shift();h.push(x.getImageData(0,0,c.width,c.height))}}
-  function dot(px,py){{x.beginPath();x.arc(px,py,sz/2,0,Math.PI*2);x.fillStyle=col;x.fill()}}
-  function bindCanvas(){{
-    x=c.getContext('2d');x.strokeStyle=col;x.lineWidth=sz;x.lineCap='round';x.lineJoin='round';
-    c.addEventListener('mousedown',function(e){{save();d=true;var p=pos(e);lx=p[0];ly=p[1];dot(lx,ly)}});
-    c.addEventListener('mousemove',function(e){{if(!d)return;var p=pos(e);x.beginPath();x.moveTo(lx,ly);x.lineTo(p[0],p[1]);x.stroke();lx=p[0];ly=p[1]}});
-    c.addEventListener('mouseup',function(){{d=false}});
-    c.addEventListener('mouseleave',function(){{d=false}});
-    c.addEventListener('touchstart',function(e){{e.preventDefault();save();var p=tpos(e);lx=p[0];ly=p[1];dot(lx,ly)}});
-    c.addEventListener('touchmove',function(e){{e.preventDefault();var p=tpos(e);x.beginPath();x.moveTo(lx,ly);x.lineTo(p[0],p[1]);x.stroke();lx=p[0];ly=p[1]}});
-  }}
-  var sw=[{{c:'#000',n:'black'}},{{c:'#e03131',n:'red'}},{{c:'#2f9e44',n:'green'}},{{c:'#1971c2',n:'blue'}}];
-  sw.forEach(function(s,i){{
-    var sp=document.createElement('span');
-    sp.className='guestbook-swatch'+(i===0?' active':'');
-    sp.style.background=s.c;
-    sp.setAttribute('role','button');sp.setAttribute('aria-label',s.n);
-    sp.addEventListener('click',function(){{
-      inl.querySelectorAll('.guestbook-swatch').forEach(function(el){{el.classList.remove('active')}});
-      sp.classList.add('active');col=s.c;x.strokeStyle=col;
-    }});
-    inl.appendChild(sp);
-  }});
-  var sl=document.createElement('input');
-  sl.type='range';sl.className='guestbook-size-slider';sl.min='1';sl.max='20';sl.value='5';sl.setAttribute('aria-label','Brush size');
-  sl.addEventListener('input',function(){{sz=parseInt(sl.value);x.lineWidth=sz}});
-  inl.appendChild(document.createTextNode(' '));inl.appendChild(sl);
-  inl.appendChild(document.createTextNode(' | '));
-  var undo=document.createElement('a');undo.href='#';undo.textContent='undo';
-  undo.addEventListener('click',function(e){{e.preventDefault();if(h.length)x.putImageData(h.pop(),0,0)}});
-  inl.appendChild(undo);
-  inl.appendChild(document.createTextNode(' | '));
-  var clr=document.createElement('a');clr.href='#';clr.textContent='clear';
-  clr.addEventListener('click',function(e){{
-    e.preventDefault();h=[];x.clearRect(0,0,c.width,c.height);hid.value='';
-  }});
-  inl.appendChild(clr);
-  c=document.createElement('canvas');c.className='guestbook-canvas';c.width={w};c.height={h};c.setAttribute('aria-label','Drawing canvas');
-  cnt.appendChild(c);bindCanvas();
-  c.closest('form').addEventListener('submit',function(){{
-    var px=new Uint32Array(x.getImageData(0,0,c.width,c.height).data.buffer);
-    if(px.some(function(v){{return v!==0}})){{
-      var f=document.createElement('canvas');f.width=c.width;f.height=c.height;
-      var fx=f.getContext('2d');fx.fillStyle='#fff';fx.fillRect(0,0,f.width,f.height);fx.drawImage(c,0,0);
-      hid.value=f.toDataURL('image/png');
-    }}
-  }});
-}})();</script>"##,
-            label = config.label_drawing,
-            w = config.canvas_width,
-            h = config.canvas_height,
-        )
+        render_drawing_section(config)
     } else {
         String::new()
     };
 
     let voice_note_section = if config.enable_voice_notes {
-        format!(
-            r##"<span class="guestbook-label">{label}</span>
-<span class="guestbook-voice-wrap"><span class="guestbook-voice-controls"></span><span class="guestbook-voice-playback"></span></span><input type="hidden" name="voice_note"><script>(function(){{
-  var maxDur={max_dur};
-  var inl=document.querySelector('.guestbook-voice-controls'),
-      pb=document.querySelector('.guestbook-voice-playback'),
-      hid=document.querySelector('[name=voice_note]'),
-      rec=null,chunks=[],iv=null,st=0;
-  function fmt(s){{var m=Math.floor(s/60),sec=s%60;return m+':'+(sec<10?'0':'')+sec}}
-  function setInit(){{
-    if(rec&&rec.state==='recording'){{rec.stop();rec.stream.getTracks().forEach(function(t){{t.stop()}})}}
-    rec=null;chunks=[];clearInterval(iv);iv=null;pb.innerHTML='';hid.value='';
-    inl.innerHTML='';
-    var a=document.createElement('a');a.href='#';a.className='guestbook-voice-record';
-    a.textContent='{record}';
-    a.addEventListener('click',function(e){{e.preventDefault();startRec()}});
-    inl.appendChild(a);
-  }}
-  function setRec(){{
-    inl.innerHTML='';
-    var a=document.createElement('a');a.href='#';a.className='guestbook-voice-record recording';
-    a.textContent='stop recording';
-    a.addEventListener('click',function(e){{e.preventDefault();rec.stop();rec.stream.getTracks().forEach(function(t){{t.stop()}})}});
-    inl.appendChild(a);inl.appendChild(document.createTextNode(' '));
-    var t=document.createElement('span');t.className='guestbook-voice-timer';t.setAttribute('aria-live','polite');t.setAttribute('aria-label','Recording timer');inl.appendChild(t);
-    st=Date.now();t.textContent=fmt(0)+' / '+fmt(maxDur);
-    iv=setInterval(function(){{
-      var el=Math.floor((Date.now()-st)/1000);t.textContent=fmt(el)+' / '+fmt(maxDur);
-      if(el>=maxDur){{rec.stop();rec.stream.getTracks().forEach(function(t){{t.stop()}})}}
-    }},250);
-  }}
-  function setResult(){{
-    clearInterval(iv);iv=null;
-    var blob=new Blob(chunks,{{type:'audio/webm;codecs=opus'}});
-    inl.innerHTML='';
-    var re=document.createElement('a');re.href='#';re.textContent='re-record';
-    re.addEventListener('click',function(e){{e.preventDefault();setInit();startRec()}});
-    var disc=document.createElement('a');disc.href='#';disc.textContent='discard';
-    disc.addEventListener('click',function(e){{e.preventDefault();setInit()}});
-    inl.appendChild(re);inl.appendChild(document.createTextNode(' | '));inl.appendChild(disc);
-    var url=URL.createObjectURL(blob);
-    var au=document.createElement('audio');au.controls=true;au.preload='metadata';au.src=url;
-    pb.appendChild(au);
-    var rd=new FileReader();rd.onload=function(){{hid.value=rd.result}};rd.readAsDataURL(blob);
-  }}
-  function startRec(){{
-    chunks=[];hid.value='';pb.innerHTML='';
-    navigator.mediaDevices.getUserMedia({{audio:true}}).then(function(stream){{
-      rec=new MediaRecorder(stream,{{mimeType:'audio/webm;codecs=opus'}});
-      rec.ondataavailable=function(e){{if(e.data.size>0)chunks.push(e.data)}};
-      rec.onstop=function(){{setResult()}};
-      rec.start();setRec();
-    }}).catch(function(){{
-      inl.innerHTML='';
-      inl.appendChild(document.createTextNode('mic access denied'));
-    }});
-  }}
-  setInit();
-}})();</script>"##,
-            label = config.label_voice_note,
-            record = config.voice_note_record_text,
-            max_dur = config.voice_note_max_duration,
-        )
+        render_voice_section(config)
     } else {
         String::new()
     };
 
     format!(
         r#"<form class="guestbook-form" method="post" action="{base}/submit" accept-charset="UTF-8">
-<label class="guestbook-label" for="name">{label_name}</label>
-<input class="guestbook-input" id="name" name="name" required>
-{website_section}<label class="guestbook-label" for="message">{label_message}</label>
-<textarea class="guestbook-textarea" id="message" name="message" style="width:{tw}px;height:{th}px"></textarea>
-{drawing_section}{voice_note_section}{captcha_section}<input name="url" aria-hidden="true" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0)" tabindex="-1" autocomplete="off"><button class="guestbook-button" type="submit">{button}</button>
+<div class="guestbook-pair"><div class="guestbook-field"><label class="guestbook-label" for="name">{label_name}</label><input class="guestbook-input" id="name" name="name" required></div>{website_section}</div>
+<label class="guestbook-label" for="message">{label_message}</label>
+<textarea class="guestbook-textarea" id="message" name="message" rows="4"></textarea>
+{drawing_section}{voice_note_section}{captcha_section}<input name="url" aria-hidden="true" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0)" tabindex="-1" autocomplete="off"><div class="guestbook-row"><button class="guestbook-button" type="submit">{button}</button></div>
 </form>"#,
         base = config.base_path,
         label_name = config.label_name,
-        website_section = website_section,
         label_message = config.label_message,
-        tw = config.textarea_width,
-        th = config.textarea_height,
-        drawing_section = drawing_section,
-        voice_note_section = voice_note_section,
-        captcha_section = captcha_section,
         button = config.button_text,
     )
 }
 
 pub fn render_success_page(config: &Config) -> String {
     let template = config.success_template.as_deref().unwrap_or(DEFAULT_SUCCESS_TEMPLATE);
-    let css = if config.style.is_empty() {
-        DEFAULT_STYLE
-    } else {
-        &config.style
-    };
-    let style = format!("<style>\n{css}\n  </style>");
     template
         .replace("{{title}}", &config.site_title)
-        .replace("{{style}}", &style)
+        .replace("{{style}}", &style_tag(config))
         .replace("{{base}}", &config.base_path)
 }
 
 pub fn render_error_page(config: &Config, error: &str) -> String {
-    let css = if config.style.is_empty() {
-        DEFAULT_STYLE
-    } else {
-        &config.style
-    };
-    let error = escape_html(error);
-    format!(
-        r#"<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>{title}</title>
-  <style>
-{css}
-  </style>
-</head>
-<body>
-<div class="page-container">
-<p>{error}</p>
-<p><a href="{base}/">&#8592; back</a></p>
-</div>
-</body>
-</html>"#,
-        title = config.site_title,
-        base = config.base_path,
-    )
+    render_sign_page(config, Some(error))
 }
 
 fn website_href(website: &str) -> String {
@@ -309,7 +318,20 @@ fn render_entry(entry: &Entry, config: &Config) -> String {
     } else {
         escape_html(&entry.body)
     };
-    let drawing_html = if !entry.meta.drawing.is_empty() {
+    let ascii_drawing = if !entry.meta.drawing.is_empty() && config.renders_ascii(&entry.meta.drawing_style) {
+        std::fs::read(config.data_dir.join("drawings").join(&entry.meta.drawing))
+            .ok()
+            .and_then(|bytes| ascii::render_png(&bytes, config.drawing_ascii_columns))
+    } else {
+        None
+    };
+    let drawing_html = if let Some(art) = ascii_drawing {
+        format!(
+            "<dd class=\"entry-drawing-wrap\"><pre class=\"entry-drawing entry-drawing-ascii\" role=\"img\" aria-label=\"Drawing by {}\">{}</pre></dd>",
+            escape_html(&entry.meta.name),
+            escape_html(&art)
+        )
+    } else if !entry.meta.drawing.is_empty() {
         format!(
             "<dd class=\"entry-drawing-wrap\"><img class=\"entry-drawing\" src=\"{}/drawings/{}\" alt=\"Drawing by {}\"></dd>",
             config.base_path,
@@ -379,6 +401,10 @@ mod tests {
             enable_drawings: false,
             canvas_width: 400,
             canvas_height: 200,
+            drawing_ascii: false,
+            drawing_image: true,
+            drawing_ascii_default: true,
+            drawing_ascii_columns: 80,
             enable_voice_notes: false,
             voice_note_max_duration: 20,
             message_required: false,
@@ -387,6 +413,7 @@ mod tests {
             content_required: true,
             template: None,
             success_template: None,
+            sign_template: None,
             style: String::new(),
             button_text: "sign".into(),
             label_name: "name".into(),
@@ -395,8 +422,6 @@ mod tests {
             label_drawing: "drawing (optional)".into(),
             label_voice_note: "voice note (optional)".into(),
             voice_note_record_text: "record".into(),
-            textarea_width: 400,
-            textarea_height: 150,
             base_path: String::new(),
         }
     }
@@ -409,6 +434,7 @@ mod tests {
                 date: date.into(),
                 website: String::new(),
                 drawing: String::new(),
+                drawing_style: String::new(),
                 voice_note: String::new(),
                 status: Status::Approved,
             },
@@ -452,10 +478,27 @@ mod tests {
     #[test]
     fn test_render_default_template() {
         let config = test_config();
-        let form = render_form(&config);
-        let html = render_page(DEFAULT_TEMPLATE, &config, &[], &form);
+        let html = render_page(DEFAULT_TEMPLATE, &config, &[], "");
+        assert!(html.contains("<title>test</title>"));
+        assert!(html.contains("href=\"/sign\""));
+    }
+
+    #[test]
+    fn test_render_default_sign_template() {
+        let mut config = test_config();
+        config.base_path = "/guestbook".into();
+        let html = render_sign_page(&config, None);
         assert!(html.contains("<title>test</title>"));
         assert!(html.contains("guestbook-form"));
+        assert!(html.contains("href=\"/guestbook/\""));
+        assert!(!html.contains("<p class=\"guestbook-error\">"));
+    }
+
+    #[test]
+    fn test_render_sign_page_escapes_error() {
+        let config = test_config();
+        let html = render_sign_page(&config, Some("<b>bad</b>"));
+        assert!(html.contains("<p class=\"guestbook-error\">&lt;b&gt;bad&lt;/b&gt;</p>"));
     }
 
     #[test]
@@ -529,13 +572,11 @@ mod tests {
     }
 
     #[test]
-    fn test_render_form_custom_textarea() {
-        let mut config = test_config();
-        config.textarea_width = 500;
-        config.textarea_height = 200;
-        let form = render_form(&config);
-        assert!(form.contains("width:500px"));
-        assert!(form.contains("height:200px"));
+    fn test_render_form_pairs_name_and_website() {
+        let form = render_form(&test_config());
+        let pair = &form[form.find("guestbook-pair").unwrap()..form.find("for=\"message\"").unwrap()];
+        assert!(pair.contains("name=\"name\""));
+        assert!(pair.contains("name=\"website\""));
     }
 
     #[test]
@@ -698,16 +739,34 @@ mod tests {
         let mut config = test_config();
         config.enable_drawings = true;
         let form = render_form(&config);
-        assert!(form.contains("guestbook-drawing-wrap"));
-        assert!(form.contains("guestbook-drawing-content"));
+        assert!(form.contains("guestbook-pad"));
+        assert!(form.contains("guestbook-drawing-tools"));
+        assert!(form.contains("guestbook-size-slider"));
         assert!(form.contains("name=\"drawing\""));
+        assert!(!form.contains("guestbook-pad-art"));
+        assert!(!form.contains("guestbook-swatch"));
+    }
+
+    #[test]
+    fn test_render_form_ascii_pad() {
+        let mut config = test_config();
+        config.enable_drawings = true;
+        config.drawing_ascii = true;
+        config.drawing_ascii_columns = 84;
+        config.canvas_width = 554;
+        config.canvas_height = 253;
+        let form = render_form(&config);
+        assert!(form.contains("guestbook-pad-ascii"));
+        assert!(form.contains("guestbook-pad-art"));
+        assert!(form.contains("C=84,N=23"));
+        assert!(form.contains(r#"R=" .'`^\",:;Il!i~+_-?][}{1)(|\\/tfj"#));
     }
 
     #[test]
     fn test_render_form_hides_drawing_when_disabled() {
         let config = test_config();
         let form = render_form(&config);
-        assert!(!form.contains("guestbook-drawing-wrap"));
+        assert!(!form.contains("guestbook-pad"));
         assert!(!form.contains("name=\"drawing\""));
     }
 
@@ -808,8 +867,8 @@ mod tests {
         let mut config = test_config();
         config.enable_voice_notes = true;
         let form = render_form(&config);
-        assert!(form.contains("guestbook-voice-wrap"));
         assert!(form.contains("guestbook-voice-controls"));
+        assert!(form.contains("guestbook-voice-playback"));
         assert!(form.contains("name=\"voice_note\""));
     }
 
@@ -817,7 +876,113 @@ mod tests {
     fn test_render_form_hides_voice_note_when_disabled() {
         let config = test_config();
         let form = render_form(&config);
-        assert!(!form.contains("guestbook-voice-wrap"));
+        assert!(!form.contains("guestbook-voice-controls"));
         assert!(!form.contains("name=\"voice_note\""));
+    }
+
+    #[test]
+    fn test_render_entry_ascii_drawing() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(dir.path().join("drawings")).unwrap();
+        let mut png = Vec::new();
+        {
+            let mut enc = png::Encoder::new(&mut png, 2, 2);
+            enc.set_color(png::ColorType::Grayscale);
+            enc.set_depth(png::BitDepth::Eight);
+            enc.write_header().unwrap().write_image_data(&[0, 0, 0, 0]).unwrap();
+        }
+        std::fs::write(dir.path().join("drawings/abc.png"), &png).unwrap();
+        let mut config = test_config();
+        config.data_dir = dir.path().to_path_buf();
+        config.drawing_ascii = true;
+        config.drawing_ascii_columns = 2;
+        let mut entry = make_entry("<alice>", "2026-04-09", "");
+        entry.meta.drawing = "abc.png".into();
+        let html = render_entry(&entry, &config);
+        assert!(html.contains(r#"<pre class="entry-drawing entry-drawing-ascii" role="img" aria-label="Drawing by &lt;alice&gt;">$$</pre>"#));
+        assert!(!html.contains("<img"));
+    }
+
+    #[test]
+    fn test_render_entry_ascii_falls_back_to_image_when_missing() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut config = test_config();
+        config.data_dir = dir.path().to_path_buf();
+        config.drawing_ascii = true;
+        let mut entry = make_entry("alice", "2026-04-09", "");
+        entry.meta.drawing = "gone.png".into();
+        let html = render_entry(&entry, &config);
+        assert!(html.contains(r#"<img class="entry-drawing" src="/drawings/gone.png""#));
+    }
+
+    fn ascii_entry(style: &str) -> (tempfile::TempDir, Entry) {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(dir.path().join("drawings")).unwrap();
+        let mut png = Vec::new();
+        {
+            let mut enc = png::Encoder::new(&mut png, 2, 2);
+            enc.set_color(png::ColorType::Grayscale);
+            enc.set_depth(png::BitDepth::Eight);
+            enc.write_header().unwrap().write_image_data(&[0, 0, 0, 0]).unwrap();
+        }
+        std::fs::write(dir.path().join("drawings/abc.png"), &png).unwrap();
+        let mut entry = make_entry("alice", "2026-04-09", "");
+        entry.meta.drawing = "abc.png".into();
+        entry.meta.drawing_style = style.into();
+        (dir, entry)
+    }
+
+    fn renders_ascii_entry(ascii: bool, image: bool, ascii_default: bool, style: &str) -> bool {
+        let (dir, entry) = ascii_entry(style);
+        let mut config = test_config();
+        config.data_dir = dir.path().to_path_buf();
+        config.drawing_ascii = ascii;
+        config.drawing_image = image;
+        config.drawing_ascii_default = ascii_default;
+        config.drawing_ascii_columns = 2;
+        render_entry(&entry, &config).contains("entry-drawing-ascii")
+    }
+
+    #[test]
+    fn test_entry_style_honoured_when_both_allowed() {
+        assert!(renders_ascii_entry(true, true, false, "ascii"));
+        assert!(!renders_ascii_entry(true, true, true, "image"));
+    }
+
+    #[test]
+    fn test_entry_without_style_uses_default() {
+        assert!(renders_ascii_entry(true, true, true, ""));
+        assert!(!renders_ascii_entry(true, true, false, ""));
+    }
+
+    #[test]
+    fn test_forced_style_overrides_entry() {
+        assert!(renders_ascii_entry(true, false, false, "image"));
+        assert!(!renders_ascii_entry(false, true, true, "ascii"));
+    }
+
+    #[test]
+    fn test_render_form_style_buttons_only_with_choice() {
+        let mut config = test_config();
+        config.enable_drawings = true;
+        config.drawing_ascii = true;
+        config.drawing_image = true;
+        config.drawing_ascii_default = false;
+        let form = render_form(&config);
+        assert!(form.contains("data-style=\"ascii\""));
+        assert!(form.contains("name=\"drawing_style\" value=\"image\""));
+        config.drawing_image = false;
+        let form = render_form(&config);
+        assert!(!form.contains("data-style=\"ascii\""));
+        assert!(form.contains("name=\"drawing_style\" value=\"ascii\""));
+    }
+
+    #[test]
+    fn test_render_form_brush_reads_slider_by_class() {
+        let mut config = test_config();
+        config.enable_drawings = true;
+        config.drawing_ascii = true;
+        let form = render_form(&config);
+        assert!(form.contains("sl=tools.querySelector('.guestbook-size-slider')"));
     }
 }
